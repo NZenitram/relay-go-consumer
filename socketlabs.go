@@ -25,7 +25,8 @@ func SendEmailWithSocketLabs(emailMessage EmailMessage) {
 				EmailAddress: emailMessage.From.Email,
 				FriendlyName: emailMessage.From.Name,
 			},
-			PlainTextBody: emailMessage.Body,
+			PlainTextBody: emailMessage.TextBody,
+			HtmlBody:      emailMessage.HtmlBody,
 		}
 
 		// Add the recipient with a friendly name

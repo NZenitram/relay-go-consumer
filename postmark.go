@@ -7,7 +7,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"net/http/httputil"
 	"strings"
 )
 
@@ -49,7 +48,7 @@ func SendEmailWithPostmark(emailMessage EmailMessage) error {
 	if err != nil {
 		return fmt.Errorf("failed to marshal email message: %v", err)
 	}
-	fmt.Printf("JSON data: %s\n", string(jsonData))
+	// fmt.Printf("JSON data: %s\n", string(jsonData))
 
 	// Create a new HTTP request
 	req, err := http.NewRequest("POST", apiURL, bytes.NewBuffer(jsonData))
@@ -63,12 +62,12 @@ func SendEmailWithPostmark(emailMessage EmailMessage) error {
 	req.Header.Set("X-Postmark-Server-Token", serverToken)
 
 	// Print the HTTP request to the console
-	requestDump, err := httputil.DumpRequestOut(req, true)
-	if err != nil {
-		fmt.Printf("failed to dump HTTP request: %v\n", err)
-	}
-	fmt.Println("HTTP Request:")
-	fmt.Println(string(requestDump))
+	// requestDump, err := httputil.DumpRequestOut(req, true)
+	// if err != nil {
+	// 	fmt.Printf("failed to dump HTTP request: %v\n", err)
+	// }
+	// fmt.Println("HTTP Request:")
+	// fmt.Println(string(requestDump))
 
 	// Send the request
 	client := &http.Client{}
@@ -109,10 +108,10 @@ func mapEmailMessageToPostmark(emailMessage EmailMessage) PostMarkMessage {
 			Cc:            strings.Join(emailMessage.Cc, ", "),
 			Bcc:           strings.Join(emailMessage.Bcc, ", "),
 			Subject:       emailMessage.Subject,
-			Tag:           "",                // Optional, set as needed
-			HtmlBody:      emailMessage.Body, // Assuming Body is used as HtmlBody
-			TextBody:      emailMessage.Body, // Assuming Body is used as TextBody
-			ReplyTo:       "",                // Optional, set as needed
+			Tag:           "",                    // Optional, set as needed
+			HtmlBody:      emailMessage.HtmlBody, // Assuming Body is used as HtmlBody
+			TextBody:      emailMessage.TextBody, // Assuming Body is used as TextBody
+			ReplyTo:       "",                    // Optional, set as needed
 			Metadata:      emailMessage.AdditionalData,
 			Headers:       headers,
 			Attachments:   emailMessage.Attachments,
