@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"log"
 	"math/rand"
-	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -13,14 +12,14 @@ import (
 )
 
 func ProcessEmailMessages(msg *sarama.ConsumerMessage) {
-	serverID, _ := strconv.Atoi(os.Getenv("SOCKETLABS_SERVER_ID"))
-	apiKey := os.Getenv("SOCKETLABS_API_KEY")
-
 	var emailMessage EmailMessage
 	err := json.Unmarshal(msg.Value, &emailMessage)
 	if err != nil {
 		log.Fatalf("Failed to parse JSON: %v", err)
 	}
+
+	// Extract credentials from the email message
+	credentials := emailMessage.Credentials
 
 	for _, recipient := range emailMessage.To {
 		// Create a new EmailMessage for each recipient
@@ -30,33 +29,27 @@ func ProcessEmailMessages(msg *sarama.ConsumerMessage) {
 			Cc:             emailMessage.Cc,
 			Bcc:            emailMessage.Bcc,
 			Subject:        emailMessage.Subject,
-			Body:           emailMessage.Body,
+			TextBody:       emailMessage.TextBody,
+			HtmlBody:       emailMessage.HtmlBody,
 			Attachments:    emailMessage.Attachments,
 			Headers:        emailMessage.Headers,
 			AdditionalData: emailMessage.AdditionalData,
+			Credentials:    emailMessage.Credentials,
 		}
 
-		// Select sender based on weights
-		sender := SelectSender()
+		socketLabsWeight, _ := strconv.Atoi(credentials.SocketLabsWeight)
+		postMarkweight, _ := strconv.Atoi(credentials.PostmarkWeight)
+		// Select sender based on weights from credentials
+		sender := SelectSender(socketLabsWeight, postMarkweight)
 		if sender == "SocketLabs" {
-			SendEmailWithSocketLabs(serverID, apiKey, individualEmail)
+			SendEmailWithSocketLabs(individualEmail)
 		} else {
 			SendEmailWithPostmark(individualEmail)
 		}
 	}
 }
 
-func SelectSender() string {
-	socketLabsWeight, err := strconv.Atoi(os.Getenv("SOCKETLABS_WEIGHT"))
-	if err != nil {
-		log.Printf("Invalid SOCKETLABS_WEIGHT, using default 70")
-		socketLabsWeight = 70
-	}
-	postmarkWeight, err := strconv.Atoi(os.Getenv("POSTMARK_WEIGHT"))
-	if err != nil {
-		log.Printf("Invalid POSTMARK_WEIGHT, using default 30")
-		postmarkWeight = 30
-	}
+func SelectSender(socketLabsWeight, postmarkWeight int) string {
 	totalWeight := socketLabsWeight + postmarkWeight
 	randomValue := rand.Intn(totalWeight)
 	if randomValue < socketLabsWeight {
@@ -118,8 +111,19 @@ type EmailMessage struct {
 	Cc             []string          `json:"cc"`
 	Bcc            []string          `json:"bcc"`
 	Subject        string            `json:"subject"`
-	Body           string            `json:"body"`
+	TextBody       string            `json:"textbody"`
+	HtmlBody       string            `json:"htmlbody"`
 	Attachments    []Attachment      `json:"attachments"`
 	Headers        map[string]string `json:"headers"`
 	AdditionalData map[string]string `json:"additionaldata"`
+	Credentials    Credentials       `json:"credentials"`
+}
+
+type Credentials struct {
+	SocketLabsServerID  string `json:"SocketLabsServerID"`
+	SocketLabsAPIKey    string `json:"SocketLabsAPIkey"`
+	SocketLabsWeight    string `json:"SocketLabsWeight"`
+	PostmarkServerToken string `json:"PostmarkServerToken"`
+	PostmarkAPIURL      string `json:"PostmarkAPIURL"`
+	PostmarkWeight      string `json:"PostmarkWeight"`
 }

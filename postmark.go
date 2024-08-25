@@ -7,8 +7,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"net/http/httputil"
-	"os"
 	"strings"
 )
 
@@ -36,15 +34,21 @@ type CustomHeader struct {
 }
 
 func SendEmailWithPostmark(emailMessage EmailMessage) error {
+	// Extract credentials from the email message
+	serverToken := emailMessage.Credentials.PostmarkServerToken
+	apiURL := emailMessage.Credentials.PostmarkAPIURL
+
+	// Strip credentials from the email message
+	emailMessage.Credentials = Credentials{}
+
 	postmarkMessage := mapEmailMessageToPostmark(emailMessage)
+
 	// Marshal the email message to JSON
 	jsonData, err := json.Marshal(postmarkMessage)
 	if err != nil {
 		return fmt.Errorf("failed to marshal email message: %v", err)
 	}
-	fmt.Printf("JSON data: %s\n", string(jsonData))
-	serverToken := os.Getenv("POSTMARK_SERVER_TOKEN")
-	apiURL := os.Getenv("POSTMARK_API_URL")
+	// fmt.Printf("JSON data: %s\n", string(jsonData))
 
 	// Create a new HTTP request
 	req, err := http.NewRequest("POST", apiURL, bytes.NewBuffer(jsonData))
@@ -58,12 +62,12 @@ func SendEmailWithPostmark(emailMessage EmailMessage) error {
 	req.Header.Set("X-Postmark-Server-Token", serverToken)
 
 	// Print the HTTP request to the console
-	requestDump, err := httputil.DumpRequestOut(req, true)
-	if err != nil {
-		fmt.Printf("failed to dump HTTP request: %v\n", err)
-	}
-	fmt.Println("HTTP Request:")
-	fmt.Println(string(requestDump))
+	// requestDump, err := httputil.DumpRequestOut(req, true)
+	// if err != nil {
+	// 	fmt.Printf("failed to dump HTTP request: %v\n", err)
+	// }
+	// fmt.Println("HTTP Request:")
+	// fmt.Println(string(requestDump))
 
 	// Send the request
 	client := &http.Client{}
@@ -104,10 +108,10 @@ func mapEmailMessageToPostmark(emailMessage EmailMessage) PostMarkMessage {
 			Cc:            strings.Join(emailMessage.Cc, ", "),
 			Bcc:           strings.Join(emailMessage.Bcc, ", "),
 			Subject:       emailMessage.Subject,
-			Tag:           "",                // Optional, set as needed
-			HtmlBody:      emailMessage.Body, // Assuming Body is used as HtmlBody
-			TextBody:      emailMessage.Body, // Assuming Body is used as TextBody
-			ReplyTo:       "",                // Optional, set as needed
+			Tag:           "",                    // Optional, set as needed
+			HtmlBody:      emailMessage.HtmlBody, // Assuming Body is used as HtmlBody
+			TextBody:      emailMessage.TextBody, // Assuming Body is used as TextBody
+			ReplyTo:       "",                    // Optional, set as needed
 			Metadata:      emailMessage.AdditionalData,
 			Headers:       headers,
 			Attachments:   emailMessage.Attachments,
@@ -115,7 +119,6 @@ func mapEmailMessageToPostmark(emailMessage EmailMessage) PostMarkMessage {
 			TrackLinks:    "HtmlOnly", // or other options, set as needed
 			MessageStream: "outbound", // or other options, set as needed
 		}
-		// postMarkMessages = append(postMarkMessages, postMarkMessage)
 	}
 	return postMarkMessage
 }
