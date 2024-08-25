@@ -157,6 +157,22 @@ curl -X POST http://localhost:8888 -H "Content-Type: application/json" -d '{
 }'
 ```
 
+## Postmark API Error Code 412
+
+When interacting with the Postmark API, you may encounter **Error Code 412**. This error occurs under specific conditions related to account approval status and domain restrictions. Below is an explanation of this error code and how to resolve it:
+
+### **Error Code 412: Pending Approval Domain Restriction**
+
+- **Description**: This error indicates that your Postmark account is still pending approval. During this period, there is a restriction that requires all recipient email addresses to share the same domain as the 'From' address used in your emails.
+  
+- **Example Scenario**: If your 'From' address is `twitter1@nzenitram.com`, you are only allowed to send emails to recipients with email addresses that also belong to the `nzenitram.com` domain. Attempting to send emails to other domains, such as `clickaleague.com`, will trigger this error.
+
+- **Resolution**:
+  - Ensure that all recipient addresses have the same domain as the 'From' address while your account is pending approval.
+  - If you need to send emails to different domains, contact Postmark support to inquire about the approval process and any necessary steps to lift this restriction.
+
+This error is designed to prevent misuse of the email service and ensure compliance with Postmark's policies during the account approval phase.
+
 ### Postmark Full Curl Payload Example
 ```
 curl "https://api.postmarkapp.com/email" \
