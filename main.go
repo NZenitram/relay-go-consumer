@@ -67,7 +67,7 @@ func main() {
 				if err != nil {
 					log.Fatalf("Failed to parse JSON: %v", err)
 				}
-				counter = 0
+				counter = 1
 				// Round-robin logic to alternate between senders
 				if counter%2 == 0 {
 					SendEmailWithSocketLabs(serverID, apiKey, emailMessage)
@@ -93,12 +93,16 @@ func (e *EmailAddress) UnmarshalJSON(data []byte) error {
 	// Attempt to unmarshal as a simple string
 	var emailString string
 	if err := json.Unmarshal(data, &emailString); err == nil {
-		// Parse the string to extract name and email
-		r := regexp.MustCompile(`(?i)(?:"?([^"]*)"?\s)?(?:<?(.+@.+\..+)>?)`)
+		// Updated regex pattern to capture Friendly Name and Email Address
+		r := regexp.MustCompile(`(?i)(?:"?([^"<]*)"?\s*<([^>]+)>|([^<>\s]+@[^<>\s]+))`)
 		matches := r.FindStringSubmatch(emailString)
-		if len(matches) > 2 {
+		if len(matches) > 0 {
 			e.Name = strings.TrimSpace(matches[1])
-			e.Email = strings.TrimSpace(matches[2])
+			if matches[2] != "" {
+				e.Email = strings.TrimSpace(matches[2])
+			} else {
+				e.Email = strings.TrimSpace(matches[3])
+			}
 		} else {
 			e.Email = emailString
 			e.Name = "" // No name available

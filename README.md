@@ -35,13 +35,13 @@ This JSON structure allows for detailed customization of the email sending proce
 ### Sample JSON Structure for Email Sends
 ```
 '{
-  "from": "Twitter Zen <twitter1@nzenitram.com>",
+  "from": "Twitter Zen <nick@nzenitram.com>",
   "to": [
-    "\"Nick Martinez, Jr.\" <nick@nzenitram.com>",
+    "\"Nick Martinez, Jr.\" <twitter1@nzenitram.com>",
     "Mick Nartinez <nzenitram@nzenitram.com>"
   ],
   "cc": ["nick1@nzenitram.com"],
-  "bcc": ["support@clickaleague.com"],
+  "bcc": ["support@nzenitram.com"],
   "subject": "Updating the subject to reflect the test",
   "body": "This is the body of the email.",
   "attachments": [
@@ -67,13 +67,13 @@ This JSON structure allows for detailed customization of the email sending proce
 ### Curl with Friendly From, Headers and Attchment
 ```
 curl -X POST http://localhost:8888 -H "Content-Type: application/json" -d '{
-  "from": "Twitter Zen <twitter1@nzenitram.com>",
+  "from": "Twitter Zen <nick@nzenitram.com>",
   "to": [
     "\"Nick Martinez, Jr.\" <nick@nzenitram.com>",
     "Mick Nartinez <nzenitram@nzenitram.com>"
   ],
   "cc": ["nick1@nzenitram.com"],
-  "bcc": ["support@clickaleague.com"],
+  "bcc": ["support@nzenitram.com"],
   "subject": "Updating the subject to reflect the test",
   "body": "This is the body of the email.",
   "attachments": [
@@ -98,13 +98,13 @@ curl -X POST http://localhost:8888 -H "Content-Type: application/json" -d '{
 ### Curl without Friendly From
 ```
 curl -X POST http://localhost:8888 -H "Content-Type: application/json" -d '{
-  "from": "<twitter1@nzenitram.com>",
+  "from": "<nick@nzenitram.com>",
   "to": [
     "<nick@nzenitram.com>",
     "<nzenitram@nzenitram.com>"
   ],
   "cc": ["nick1@nzenitram.com"],
-  "bcc": ["support@clickaleague.com"],
+  "bcc": ["support@nzenitram.com"],
   "subject": "Updating the subject to reflect the test",
   "body": "This is the body of the email.",
   "attachments": [
@@ -135,7 +135,7 @@ curl -X POST http://localhost:8888 -H "Content-Type: application/json" -d '{
     "nzenitram@nzenitram.com"
   ],
   "cc": ["nick1@nzenitram.com"],
-  "bcc": ["support@clickaleague.com"],
+  "bcc": ["support@nzenitram.com"],
   "subject": "Updating the subject to reflect the test",
   "body": "This is the body of the email.",
   "attachments": [
@@ -163,43 +163,37 @@ curl "https://api.postmarkapp.com/email" \
   -X POST \
   -H "Accept: application/json" \
   -H "Content-Type: application/json" \
-  -H "X-Postmark-Server-Token: server token" \
+  -H "X-Postmark-Server-Token: c4ffc3fe-d077-4480-95c2-629e203c919d" \
   -d '{
-  "From": "Twitter Zen <twitter1@nzenitram.com>",
-  "To": "\"Nick Martinez, Jr.\" <nick@nzenitram.com>",
+  "From": "nick@nzenitram.com",
+  "To": "nzenitram@nzenitram.com",
   "Cc": "nick1@nzenitram.com",
-  "Bcc": "support@clickaleague.com",
-  "Subject": "This is a test PostMark Email",
-  "Tag": "Invitation",
-  "HtmlBody": "<b>Hello</b>",
-  "TextBody": "Hello",
-  "ReplyTo": "twitter1@nzenitram.com",
-  "Metadata": {
-      "Color":"blue",
-      "Client-Id":"12345"
-  },
+  "Bcc": "support@nzenitram.com",
+  "Subject": "Updating the subject to reflect the test",
+  "Tag": "",
+  "HtmlBody": "This is the body of the email.",
+  "TextBody": "This is the body of the email.",
+  "ReplyTo": "",
+  "Metadata": null,
   "Headers": [
     {
-      "Name": "CUSTOM-HEADER",
-      "Value": "value"
+      "Name": "X-Custom-Header-1",
+      "Value": "Custom Value 1"
+    },
+    {
+      "Name": "X-Custom-Header-2",
+      "Value": "Custom Value 2"
     }
   ],
   "Attachments": [
     {
-      "Name": "readme.txt",
-      "Content": "dGVzdCBjb250ZW50",
-      "ContentType": "text/plain"
-    },
-    {
-      "Name": "report.pdf",
-      "Content": "dGVzdCBjb250ZW50",
-      "ContentType": "application/octet-stream"
+      "Name": "example.txt",
+      "ContentType": "text/plain",
+      "Content": "SGVsbG8gd29ybGQh"
     }
   ],
-  "AddtionalData":[
-    "TrackOpens": true,
-    "TrackLinks": "HtmlOnly",
-    "MessageStream": "outbound"
-    ]
-}
+  "TrackOpens": true,
+  "TrackLinks": "HtmlOnly",
+  "MessageStream": "outbound"
+}'
 ```
