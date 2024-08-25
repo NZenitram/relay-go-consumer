@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/http/httputil"
 	"os"
 	"strings"
 )
@@ -55,6 +56,14 @@ func SendEmailWithPostmark(emailMessage EmailMessage) error {
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Postmark-Server-Token", serverToken)
+
+	// Print the HTTP request to the console
+	requestDump, err := httputil.DumpRequestOut(req, true)
+	if err != nil {
+		fmt.Printf("failed to dump HTTP request: %v\n", err)
+	}
+	fmt.Println("HTTP Request:")
+	fmt.Println(string(requestDump))
 
 	// Send the request
 	client := &http.Client{}
