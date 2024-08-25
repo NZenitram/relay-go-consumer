@@ -8,9 +8,11 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/IBM/sarama"
 	"github.com/joho/godotenv"
+	"golang.org/x/exp/rand"
 )
 
 func main() {
@@ -24,6 +26,8 @@ func main() {
 	offsetReset := os.Getenv("KAFKA_OFFSET_RESET")
 	serverID, _ := strconv.Atoi(os.Getenv("SOCKETLABS_SERVER_ID"))
 	apiKey := os.Getenv("SOCKETLABS_API_KEY")
+	socketLabsWeight, _ := strconv.Atoi(os.Getenv("SOCKETLABS_WEIGHT"))
+	postmarkWeight, _ := strconv.Atoi(os.Getenv("POSTMARK_WEIGHT"))
 
 	// Set the offset reset policy based on the environment variable
 	var offsetResetConfig int64
@@ -51,8 +55,10 @@ func main() {
 	}
 
 	// Initialize a counter for round-robin
-	var counter int
+	// Define weights for each sender
+	totalWeight := socketLabsWeight + postmarkWeight
 
+	rand.Seed(uint64(time.Now().UnixNano())) // Seed the random number generator
 	for _, partition := range partitionList {
 		pc, err := consumer.ConsumePartition(topic, partition, config.Consumer.Offsets.Initial)
 		if err != nil {
@@ -67,14 +73,29 @@ func main() {
 				if err != nil {
 					log.Fatalf("Failed to parse JSON: %v", err)
 				}
-				counter = 1
-				// Round-robin logic to alternate between senders
-				if counter%2 == 0 {
-					SendEmailWithSocketLabs(serverID, apiKey, emailMessage)
-				} else {
-					SendEmailWithPostmark(emailMessage)
+
+				for _, recipient := range emailMessage.To {
+					// Create a new EmailMessage for each recipient
+					individualEmail := EmailMessage{
+						From:           emailMessage.From,
+						To:             []EmailAddress{recipient}, // Single recipient
+						Cc:             emailMessage.Cc,
+						Bcc:            emailMessage.Bcc,
+						Subject:        emailMessage.Subject,
+						Body:           emailMessage.Body,
+						Attachments:    emailMessage.Attachments,
+						Headers:        emailMessage.Headers,
+						AdditionalData: emailMessage.AdditionalData,
+					}
+
+					// Randomly select a sender based on weights
+					randomValue := rand.Intn(totalWeight)
+					if randomValue < socketLabsWeight {
+						SendEmailWithSocketLabs(serverID, apiKey, individualEmail)
+					} else {
+						SendEmailWithPostmark(individualEmail)
+					}
 				}
-				counter++
 			}
 		}(pc) // Consume messages concurrently
 	}
