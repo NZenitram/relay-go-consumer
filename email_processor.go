@@ -12,9 +12,6 @@ import (
 )
 
 func ProcessEmailMessages(msg *sarama.ConsumerMessage) {
-	// serverID, _ := strconv.Atoi(os.Getenv("SOCKETLABS_SERVER_ID"))
-	// apiKey := os.Getenv("SOCKETLABS_API_KEY")
-
 	var emailMessage EmailMessage
 	err := json.Unmarshal(msg.Value, &emailMessage)
 	if err != nil {
