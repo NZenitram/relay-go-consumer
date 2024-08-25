@@ -26,5 +26,6 @@ require (
 	github.com/pierrec/lz4/v4 v4.1.21 // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475 // indirect
 	golang.org/x/crypto v0.26.0 // indirect
+	golang.org/x/exp v0.0.0-20240823005443-9b4947da3948
 	golang.org/x/net v0.28.0 // indirect
 )
