@@ -22,4 +22,8 @@ go.work
 go.work.sum
 
 # env file
+<<<<<<< HEAD
 .env
+=======
+.env
+>>>>>>> 0868f30db1b895b49bf12e6730897b6fcb29e0e4
