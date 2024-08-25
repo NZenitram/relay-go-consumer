@@ -8,7 +8,6 @@ import (
 	"log"
 	"net/http"
 	"net/http/httputil"
-	"os"
 	"strings"
 )
 
@@ -36,15 +35,21 @@ type CustomHeader struct {
 }
 
 func SendEmailWithPostmark(emailMessage EmailMessage) error {
+	// Extract credentials from the email message
+	serverToken := emailMessage.Credentials.PostmarkServerToken
+	apiURL := emailMessage.Credentials.PostmarkAPIURL
+
+	// Strip credentials from the email message
+	emailMessage.Credentials = Credentials{}
+
 	postmarkMessage := mapEmailMessageToPostmark(emailMessage)
+
 	// Marshal the email message to JSON
 	jsonData, err := json.Marshal(postmarkMessage)
 	if err != nil {
 		return fmt.Errorf("failed to marshal email message: %v", err)
 	}
 	fmt.Printf("JSON data: %s\n", string(jsonData))
-	serverToken := os.Getenv("POSTMARK_SERVER_TOKEN")
-	apiURL := os.Getenv("POSTMARK_API_URL")
 
 	// Create a new HTTP request
 	req, err := http.NewRequest("POST", apiURL, bytes.NewBuffer(jsonData))
@@ -115,7 +120,6 @@ func mapEmailMessageToPostmark(emailMessage EmailMessage) PostMarkMessage {
 			TrackLinks:    "HtmlOnly", // or other options, set as needed
 			MessageStream: "outbound", // or other options, set as needed
 		}
-		// postMarkMessages = append(postMarkMessages, postMarkMessage)
 	}
 	return postMarkMessage
 }
