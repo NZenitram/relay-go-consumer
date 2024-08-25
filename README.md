@@ -14,7 +14,9 @@ This section describes the JSON structure used to send an email through the emai
 
 - **`subject`**: A string representing the subject line of the email.
 
-- **`body`**: A string containing the main content of the email.
+- **`textbody`**: A string containing the plain text version of the email content. This version is used by email clients that do not support HTML.
+
+- **`htmlbody`**: A string containing the HTML version of the email content. This version allows for rich text formatting and styling.
 
 - **`attachments`**: An array of objects, each representing an attachment. Each attachment object contains:
   - **`name`**: A string specifying the file name of the attachment.
@@ -162,6 +164,14 @@ curl -X POST http://localhost:8888 -H "Content-Type: application/json" -d '{
   }
 }'
 ```
+
+### Instructions for `textbody` vs `htmlbody`
+
+- **`textbody`**: Use this field to provide a plain text version of the email content. This is important for recipients whose email clients do not support HTML. It ensures that the message is still readable without formatting.
+
+- **`htmlbody`**: Use this field to provide an HTML version of the email content. This allows for rich text formatting, including styles, links, and images, enhancing the visual appeal of the email.
+
+When both `textbody` and `htmlbody` are provided, email clients that support HTML will display the HTML content, while those that do not will fall back to the plain text content. This ensures broad compatibility and a good user experience across different email platforms.
 
 ### Using Credentials in API Calls
 
