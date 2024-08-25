@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"log"
 	"os"
+	"regexp"
 	"strconv"
+	"strings"
 
 	"github.com/IBM/sarama"
 	"github.com/joho/godotenv"
@@ -65,7 +67,7 @@ func main() {
 				if err != nil {
 					log.Fatalf("Failed to parse JSON: %v", err)
 				}
-				counter = 1
+				counter = 0
 				// Round-robin logic to alternate between senders
 				if counter%2 == 0 {
 					SendEmailWithSocketLabs(serverID, apiKey, emailMessage)
@@ -89,10 +91,18 @@ type EmailAddress struct {
 // Custom unmarshaling logic for EmailAddress
 func (e *EmailAddress) UnmarshalJSON(data []byte) error {
 	// Attempt to unmarshal as a simple string
-	var email string
-	if err := json.Unmarshal(data, &email); err == nil {
-		e.Email = email
-		e.Name = "" // No name available
+	var emailString string
+	if err := json.Unmarshal(data, &emailString); err == nil {
+		// Parse the string to extract name and email
+		r := regexp.MustCompile(`(?i)(?:"?([^"]*)"?\s)?(?:<?(.+@.+\..+)>?)`)
+		matches := r.FindStringSubmatch(emailString)
+		if len(matches) > 2 {
+			e.Name = strings.TrimSpace(matches[1])
+			e.Email = strings.TrimSpace(matches[2])
+		} else {
+			e.Email = emailString
+			e.Name = "" // No name available
+		}
 		return nil
 	}
 
