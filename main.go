@@ -64,6 +64,9 @@ func main() {
 		}(pc) // Consume messages concurrently
 	}
 
+	// Start the HTTP server
+	go StartHTTPServer()
+
 	// Wait forever
 	<-context.Background().Done()
 }
