@@ -1,6 +1,6 @@
 ## Email Sending Endpoint JSON Structure
 
-This section describes the JSON structure used to send an email through the email sending endpoint. The JSON object contains various fields that specify the sender, recipients, email content, and additional options.
+This section describes the JSON structure used to send an email through the email sending endpoint. The JSON object contains various fields that specify the sender, recipients, email content, additional options, and credentials for API authentication.
 
 ### JSON Fields
 
@@ -28,13 +28,22 @@ This section describes the JSON structure used to send an email through the emai
   - **`TrackLinks`**: A string specifying link tracking options. Possible values include `"HtmlOnly"`.
   - **`MessageStream`**: A string specifying the message stream to use, such as `"outbound"`.
 
-This JSON structure allows for detailed customization of the email sending process, including specifying recipients, adding attachments, and setting tracking options.
+- **`credentials`**: An object containing authentication credentials and configuration for sending emails through different services:
+  - **`SocketLabsServerID`**: A string representing the server ID for SocketLabs.
+  - **`SocketLabsAPIkey`**: A string representing the API key for SocketLabs.
+  - **`SocketLabsWeight`**: A string representing the weighting factor for selecting SocketLabs as the email service.
+  - **`PostmarkServerToken`**: A string representing the server token for Postmark.
+  - **`PostmarkAPIURL`**: A string representing the API URL for Postmark.
+  - **`PostmarkWeight`**: A string representing the weighting factor for selecting Postmark as the email service.
 
-## Example CURL Requests for Testing 
+This JSON structure allows for detailed customization of the email sending process, including specifying recipients, adding attachments, setting tracking options, and using specific credentials for different email service providers.
+
+## Example CURL Requests for Testing
 
 ### Sample JSON Structure for Email Sends
-```
-'{
+
+```json
+{
   "from": "Twitter Zen <nick@nzenitram.com>",
   "to": [
     "\"Nick Martinez, Jr.\" <twitter1@nzenitram.com>",
@@ -59,13 +68,21 @@ This JSON structure allows for detailed customization of the email sending proce
     "TrackOpens": true,
     "TrackLinks": "HtmlOnly",
     "MessageStream": "outbound"
+  },
+  "credentials": {
+    "SocketLabsServerID": "12345",
+    "SocketLabsAPIkey": "12345abcdefg",
+    "SocketLabsWeight": "50",
+    "PostmarkServerToken": "555555555-abcd-5555-9279-2bdaf804f19f",
+    "PostmarkAPIURL": "https://api.postmarkapp.com/email",
+    "PostmarkWeight": "50"
   }
-}'
+}
 ```
 
+### Curl with Friendly From, Headers, and Attachment
 
-### Curl with Friendly From, Headers and Attchment
-```
+```bash
 curl -X POST http://localhost:8888 -H "Content-Type: application/json" -d '{
   "from": "Twitter Zen <nick@nzenitram.com>",
   "to": [
@@ -91,71 +108,21 @@ curl -X POST http://localhost:8888 -H "Content-Type: application/json" -d '{
     "TrackOpens": true,
     "TrackLinks": "HtmlOnly",
     "MessageStream": "outbound"
+  },
+  "credentials": {
+    "SocketLabsServerID": "12345",
+    "SocketLabsAPIkey": "12345abcdefg",
+    "SocketLabsWeight": "50",
+    "PostmarkServerToken": "555555555-abcd-5555-9279-2bdaf804f19f",
+    "PostmarkAPIURL": "https://api.postmarkapp.com/email",
+    "PostmarkWeight": "50"
   }
 }'
 ```
 
-### Curl without Friendly From
-```
-curl -X POST http://localhost:8888 -H "Content-Type: application/json" -d '{
-  "from": "<nick@nzenitram.com>",
-  "to": [
-    "<nick@nzenitram.com>",
-    "<nzenitram@nzenitram.com>"
-  ],
-  "cc": ["nick1@nzenitram.com"],
-  "bcc": ["support@nzenitram.com"],
-  "subject": "Updating the subject to reflect the test",
-  "body": "This is the body of the email.",
-  "attachments": [
-    {
-      "name": "example.txt",
-      "contenttype": "text/plain",
-      "content": "SGVsbG8gd29ybGQh"
-    }
-  ],
-  "headers": {
-    "X-Custom-Header-1": "Custom Value 1",
-    "X-Custom-Header-2": "Custom Value 2"
-  },
-  "data": {
-    "TrackOpens": true,
-    "TrackLinks": "HtmlOnly",
-    "MessageStream": "outbound"
-  }
-}'
-```
+### Using Credentials in API Calls
 
-### Curl without Friendly From and brackets
-```
-curl -X POST http://localhost:8888 -H "Content-Type: application/json" -d '{
-  "from": "twitter1@nzenitram.com",
-  "to": [
-    "nick@nzenitram.com",
-    "nzenitram@nzenitram.com"
-  ],
-  "cc": ["nick1@nzenitram.com"],
-  "bcc": ["support@nzenitram.com"],
-  "subject": "Updating the subject to reflect the test",
-  "body": "This is the body of the email.",
-  "attachments": [
-    {
-      "name": "example.txt",
-      "contenttype": "text/plain",
-      "content": "SGVsbG8gd29ybGQh"
-    }
-  ],
-  "headers": {
-    "X-Custom-Header-1": "Custom Value 1",
-    "X-Custom-Header-2": "Custom Value 2"
-  },
-  "data": {
-    "TrackOpens": true,
-    "TrackLinks": "HtmlOnly",
-    "MessageStream": "outbound"
-  }
-}'
-```
+The `credentials` field in the JSON structure provides the necessary authentication details for sending emails through different services. Depending on the service being used (SocketLabs or Postmark), the relevant credentials and weights are utilized to authenticate and prioritize the email sending process. The weights determine the probability of selecting a particular service when sending emails, allowing for load balancing or preference-based sending strategies.
 
 ## Postmark API Error Code 412
 
