@@ -32,7 +32,8 @@ func ProcessEmailMessages(msg *sarama.ConsumerMessage) {
 			Cc:             emailMessage.Cc,
 			Bcc:            emailMessage.Bcc,
 			Subject:        emailMessage.Subject,
-			Body:           emailMessage.Body,
+			TextBody:       emailMessage.TextBody,
+			HtmlBody:       emailMessage.HtmlBody,
 			Attachments:    emailMessage.Attachments,
 			Headers:        emailMessage.Headers,
 			AdditionalData: emailMessage.AdditionalData,
@@ -113,7 +114,8 @@ type EmailMessage struct {
 	Cc             []string          `json:"cc"`
 	Bcc            []string          `json:"bcc"`
 	Subject        string            `json:"subject"`
-	Body           string            `json:"body"`
+	TextBody       string            `json:"textbody"`
+	HtmlBody       string            `json:"htmlbody"`
 	Attachments    []Attachment      `json:"attachments"`
 	Headers        map[string]string `json:"headers"`
 	AdditionalData map[string]string `json:"additionaldata"`

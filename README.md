@@ -52,7 +52,8 @@ This JSON structure allows for detailed customization of the email sending proce
   "cc": ["nick1@nzenitram.com"],
   "bcc": ["support@nzenitram.com"],
   "subject": "Updating the subject to reflect the test",
-  "body": "This is the body of the email.",
+  "textbody": "This is the plain text body of the email.",
+  "htmlbody": "<p>This is the <strong>HTML</strong> body of the email.</p>",
   "attachments": [
     {
       "name": "example.txt",
@@ -80,7 +81,7 @@ This JSON structure allows for detailed customization of the email sending proce
 }
 ```
 
-### Curl with Friendly From, Headers, and Attachment
+### Curl with Text Body, Friendly From, Headers, and Attachment
 
 ```bash
 curl -X POST http://localhost:8888 -H "Content-Type: application/json" -d '{
@@ -92,7 +93,49 @@ curl -X POST http://localhost:8888 -H "Content-Type: application/json" -d '{
   "cc": ["nick1@nzenitram.com"],
   "bcc": ["support@nzenitram.com"],
   "subject": "Updating the subject to reflect the test",
-  "body": "This is the body of the email.",
+  "textbody": "This is the plain text body of the email.",
+  "htmlbody": "",
+  "attachments": [
+    {
+      "name": "example.txt",
+      "contenttype": "text/plain",
+      "content": "SGVsbG8gd29ybGQh"
+    }
+  ],
+  "headers": {
+    "X-Custom-Header-1": "Custom Value 1",
+    "X-Custom-Header-2": "Custom Value 2"
+  },
+  "data": {
+    "TrackOpens": true,
+    "TrackLinks": "HtmlOnly",
+    "MessageStream": "outbound"
+  },
+  "credentials": {
+    "SocketLabsServerID": "12345",
+    "SocketLabsAPIkey": "12345abcdefg",
+    "SocketLabsWeight": "50",
+    "PostmarkServerToken": "555555555-abcd-5555-9279-2bdaf804f19f",
+    "PostmarkAPIURL": "https://api.postmarkapp.com/email",
+    "PostmarkWeight": "50"
+  }
+}'
+```
+
+### Curl with HTML Body, Friendly From, Headers, and Attachment
+
+```bash
+curl -X POST http://localhost:8888 -H "Content-Type: application/json" -d '{
+  "from": "Twitter Zen <nick@nzenitram.com>",
+  "to": [
+    "\"Nick Martinez, Jr.\" <nick@nzenitram.com>",
+    "Mick Nartinez <nzenitram@nzenitram.com>"
+  ],
+  "cc": ["nick1@nzenitram.com"],
+  "bcc": ["support@nzenitram.com"],
+  "subject": "Updating the subject to reflect the test",
+  "textbody": "",
+  "htmlbody": "<p>This is the <strong>HTML</strong> body of the email.</p>",
   "attachments": [
     {
       "name": "example.txt",
