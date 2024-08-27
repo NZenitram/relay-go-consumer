@@ -39,23 +39,29 @@ func ProcessEmailMessages(msg *sarama.ConsumerMessage) {
 
 		socketLabsWeight, _ := strconv.Atoi(credentials.SocketLabsWeight)
 		postMarkweight, _ := strconv.Atoi(credentials.PostmarkWeight)
+		sendGridWeight, _ := strconv.Atoi(credentials.SendgridWeight)
 		// Select sender based on weights from credentials
-		sender := SelectSender(socketLabsWeight, postMarkweight)
-		if sender == "SocketLabs" {
+		sender := SelectSender(socketLabsWeight, postMarkweight, sendGridWeight)
+		switch sender {
+		case "SocketLabs":
 			SendEmailWithSocketLabs(individualEmail)
-		} else {
+		case "Postmark":
 			SendEmailWithPostmark(individualEmail)
+		case "SendGrid":
+			SendEmailWithSendGrid(individualEmail)
 		}
 	}
 }
 
-func SelectSender(socketLabsWeight, postmarkWeight int) string {
-	totalWeight := socketLabsWeight + postmarkWeight
+func SelectSender(socketLabsWeight, postmarkWeight, sendGridWeight int) string {
+	totalWeight := socketLabsWeight + postmarkWeight + sendGridWeight
 	randomValue := rand.Intn(totalWeight)
 	if randomValue < socketLabsWeight {
 		return "SocketLabs"
+	} else if randomValue < socketLabsWeight+postmarkWeight {
+		return "Postmark"
 	}
-	return "Postmark"
+	return "SendGrid"
 }
 
 type EmailAddress struct {
@@ -126,4 +132,6 @@ type Credentials struct {
 	PostmarkServerToken string `json:"PostmarkServerToken"`
 	PostmarkAPIURL      string `json:"PostmarkAPIURL"`
 	PostmarkWeight      string `json:"PostmarkWeight"`
+	SendGridAPIKey      string `json:"SendgridAPIKey"`
+	SendgridWeight      string `json:"SendgridWeifght`
 }
