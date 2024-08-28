@@ -11,7 +11,7 @@ import (
 
 func SendEmailWithSendGrid(emailMessage EmailMessage) {
 	// Use credentials from the EmailMessage
-	apiKey := emailMessage.Credentials.SendGridAPIKey
+	apiKey := emailMessage.Credentials.SendgridAPIKey
 
 	client := sendgrid.NewSendClient(apiKey)
 

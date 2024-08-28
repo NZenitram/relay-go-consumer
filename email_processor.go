@@ -21,6 +21,24 @@ func ProcessEmailMessages(msg *sarama.ConsumerMessage) {
 	// Extract credentials from the email message
 	credentials := emailMessage.Credentials
 
+	// Parse weights, default to 0 if not present
+	socketLabsWeight, _ := strconv.Atoi(credentials.SocketLabsWeight)
+	postmarkWeight, _ := strconv.Atoi(credentials.PostmarkWeight)
+	sendGridWeight, _ := strconv.Atoi(credentials.SendgridWeight)
+
+	// Check for available credentials and adjust weights accordingly
+	if credentials.SocketLabsServerID == "" || credentials.SocketLabsAPIKey == "" {
+		socketLabsWeight = 0
+	}
+	if credentials.PostmarkServerToken == "" || credentials.PostmarkAPIURL == "" {
+		postmarkWeight = 0
+	}
+	if credentials.SendgridAPIKey == "" {
+		sendGridWeight = 0
+	}
+
+	// Select sender based on available weights
+
 	for _, recipient := range emailMessage.To {
 		// Create a new EmailMessage for each recipient
 		individualEmail := EmailMessage{
@@ -37,11 +55,7 @@ func ProcessEmailMessages(msg *sarama.ConsumerMessage) {
 			Credentials:    emailMessage.Credentials,
 		}
 
-		socketLabsWeight, _ := strconv.Atoi(credentials.SocketLabsWeight)
-		postMarkweight, _ := strconv.Atoi(credentials.PostmarkWeight)
-		sendGridWeight, _ := strconv.Atoi(credentials.SendgridWeight)
-		// Select sender based on weights from credentials
-		sender := SelectSender(socketLabsWeight, postMarkweight, sendGridWeight)
+		sender := SelectSender(socketLabsWeight, postmarkWeight, sendGridWeight)
 		switch sender {
 		case "SocketLabs":
 			SendEmailWithSocketLabs(individualEmail)
@@ -49,6 +63,8 @@ func ProcessEmailMessages(msg *sarama.ConsumerMessage) {
 			SendEmailWithPostmark(individualEmail)
 		case "SendGrid":
 			SendEmailWithSendGrid(individualEmail)
+		default:
+			log.Printf("No valid credentials found for any sender for recipient: %s", recipient.Email)
 		}
 	}
 }
@@ -132,6 +148,6 @@ type Credentials struct {
 	PostmarkServerToken string `json:"PostmarkServerToken"`
 	PostmarkAPIURL      string `json:"PostmarkAPIURL"`
 	PostmarkWeight      string `json:"PostmarkWeight"`
-	SendGridAPIKey      string `json:"SendgridAPIKey"`
-	SendgridWeight      string `json:"SendgridWeifght`
+	SendgridAPIKey      string `json:"SendgridAPIKey"`
+	SendgridWeight      string `json:"SendgridWeight"`
 }
