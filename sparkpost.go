@@ -27,11 +27,12 @@ func SendEmailWithSparkPost(emailMessage EmailMessage) {
 	}
 
 	// Prepare recipients
-	recipients := make([]sp.Address, len(emailMessage.To))
+	recipients := make([]sp.Recipient, len(emailMessage.To))
 	for i, addr := range emailMessage.To {
-		recipients[i] = sp.Address{
-			Email: addr.Email,
-			Name:  addr.Name,
+		recipients[i] = sp.Recipient{
+			Address: sp.Address{
+				Email: addr.Email,
+			},
 		}
 	}
 
