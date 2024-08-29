@@ -20,6 +20,9 @@ func ProcessEmailMessages(msg *sarama.ConsumerMessage) {
 
 	// Extract credentials from the email message
 	credentials := emailMessage.Credentials
+	socketLabsWeight, postmarkWeight, sendGridWeight, sparkPostWeight := calculateWeights(credentials)
+
+	// Select sender based on available weights
 
 	for _, recipient := range emailMessage.To {
 		// Create a new EmailMessage for each recipient
@@ -37,11 +40,7 @@ func ProcessEmailMessages(msg *sarama.ConsumerMessage) {
 			Credentials:    emailMessage.Credentials,
 		}
 
-		socketLabsWeight, _ := strconv.Atoi(credentials.SocketLabsWeight)
-		postMarkweight, _ := strconv.Atoi(credentials.PostmarkWeight)
-		sendGridWeight, _ := strconv.Atoi(credentials.SendgridWeight)
-		// Select sender based on weights from credentials
-		sender := SelectSender(socketLabsWeight, postMarkweight, sendGridWeight)
+		sender := SelectSender(socketLabsWeight, postmarkWeight, sendGridWeight, sparkPostWeight)
 		switch sender {
 		case "SocketLabs":
 			SendEmailWithSocketLabs(individualEmail)
@@ -49,19 +48,53 @@ func ProcessEmailMessages(msg *sarama.ConsumerMessage) {
 			SendEmailWithPostmark(individualEmail)
 		case "SendGrid":
 			SendEmailWithSendGrid(individualEmail)
+		case "SparkPost":
+			SendEmailWithSparkPost(individualEmail)
+		default:
+			log.Printf("No valid credentials found for any sender for recipient: %s", recipient.Email)
 		}
 	}
 }
 
-func SelectSender(socketLabsWeight, postmarkWeight, sendGridWeight int) string {
-	totalWeight := socketLabsWeight + postmarkWeight + sendGridWeight
+func SelectSender(socketLabsWeight, postmarkWeight, sendGridWeight, sparkPostWeight int) string {
+	totalWeight := socketLabsWeight + postmarkWeight + sendGridWeight + sparkPostWeight
+	if totalWeight == 0 {
+		return ""
+	}
+
 	randomValue := rand.Intn(totalWeight)
 	if randomValue < socketLabsWeight {
 		return "SocketLabs"
 	} else if randomValue < socketLabsWeight+postmarkWeight {
 		return "Postmark"
+	} else if randomValue < socketLabsWeight+postmarkWeight+sendGridWeight {
+		return "SendGrid"
 	}
-	return "SendGrid"
+	return "SparkPost"
+}
+
+func calculateWeights(credentials Credentials) (int, int, int, int) {
+	// Parse weights, default to 0 if not present
+	socketLabsWeight, _ := strconv.Atoi(credentials.SocketLabsWeight)
+	postmarkWeight, _ := strconv.Atoi(credentials.PostmarkWeight)
+	sendGridWeight, _ := strconv.Atoi(credentials.SendgridWeight)
+	sparkPostWeight, _ := strconv.Atoi(credentials.SparkpostWeight)
+
+	// Check for available credentials and adjust weights accordingly
+	if credentials.SocketLabsServerID == "" || credentials.SocketLabsAPIKey == "" {
+		socketLabsWeight = 0
+	}
+	if credentials.PostmarkServerToken == "" || credentials.PostmarkAPIURL == "" {
+		postmarkWeight = 0
+	}
+	if credentials.SendgridAPIKey == "" {
+		sendGridWeight = 0
+	}
+	if credentials.SparkpostAPIKey == "" {
+		sparkPostWeight = 0
+	}
+
+	return socketLabsWeight, postmarkWeight, sendGridWeight, sparkPostWeight
 }
 
 type EmailAddress struct {
@@ -132,6 +165,8 @@ type Credentials struct {
 	PostmarkServerToken string `json:"PostmarkServerToken"`
 	PostmarkAPIURL      string `json:"PostmarkAPIURL"`
 	PostmarkWeight      string `json:"PostmarkWeight"`
-	SendGridAPIKey      string `json:"SendgridAPIKey"`
-	SendgridWeight      string `json:"SendgridWeifght`
+	SendgridAPIKey      string `json:"SendgridAPIKey"`
+	SendgridWeight      string `json:"SendgridWeight"`
+	SparkpostAPIKey     string `json:"SparkpostAPIKey"`
+	SparkpostWeight     string `json:"SparkpostWeight"`
 }

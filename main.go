@@ -18,7 +18,8 @@ func main() {
 	}
 
 	kafkaBrokers := []string{os.Getenv("KAFKA_BROKERS")}
-	topic := os.Getenv("KAFKA_TOPIC")
+	emailTopic := os.Getenv("KAFKA_EMAIL_TOPIC")
+	webhookTopic := os.Getenv("KAFKA_WEBHOOK_TOPIC")
 	offsetReset := os.Getenv("KAFKA_OFFSET_RESET")
 
 	// Set the offset reset policy based on the environment variable
@@ -29,7 +30,7 @@ func main() {
 		offsetResetConfig = sarama.OffsetNewest
 	}
 
-	// Create new consumer group configuration
+	// Create new consumer configuration
 	config := sarama.NewConfig()
 	config.Consumer.Offsets.Initial = offsetResetConfig
 
@@ -40,30 +41,34 @@ func main() {
 	}
 	defer consumer.Close()
 
-	// Consume messages from the specified topic
+	// Consume messages from the 'emails' topic
+	consumeTopic(consumer, emailTopic, config, ProcessEmailMessages)
+
+	// Consume messages from the 'webhook-events' topic
+	consumeTopic(consumer, webhookTopic, config, ProcessWebhookMessages)
+
+	// Wait forever
+	<-context.Background().Done()
+}
+
+func consumeTopic(consumer sarama.Consumer, topic string, config *sarama.Config, processFunc func(*sarama.ConsumerMessage)) {
 	partitionList, err := consumer.Partitions(topic)
 	if err != nil {
-		log.Fatalf("Failed to get the list of partitions: %v", err)
+		log.Fatalf("Failed to get the list of partitions for topic %s: %v", topic, err)
 	}
-
-	// Initialize a counter for round-robin
-	// Define weights for each sender
 
 	rand.Seed(uint64(time.Now().UnixNano())) // Seed the random number generator
 	for _, partition := range partitionList {
 		pc, err := consumer.ConsumePartition(topic, partition, config.Consumer.Offsets.Initial)
 		if err != nil {
-			log.Fatalf("Failed to start consumer for partition %d: %v", partition, err)
+			log.Fatalf("Failed to start consumer for partition %d on topic %s: %v", partition, topic, err)
 		}
 
 		go func(pc sarama.PartitionConsumer) {
 			defer pc.Close() // Ensure the partition consumer is closed
 			for msg := range pc.Messages() {
-				ProcessEmailMessages(msg)
+				processFunc(msg)
 			}
 		}(pc) // Consume messages concurrently
 	}
-
-	// Wait forever
-	<-context.Background().Done()
 }
