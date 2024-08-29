@@ -66,3 +66,66 @@ func SendEmailWithSendGrid(emailMessage EmailMessage) {
 		}
 	}
 }
+
+// Base struct for common fields
+type SendgridEvent struct {
+	Email       string   `json:"email"`
+	Timestamp   int64    `json:"timestamp"`
+	SMTPID      string   `json:"smtp-id"`
+	Event       string   `json:"event"`
+	Category    []string `json:"category"`
+	SGEventID   string   `json:"sg_event_id"`
+	SGMessageID string   `json:"sg_message_id"`
+}
+
+// Specific structs for events with additional fields
+type SendgridDeferredEvent struct {
+	SendgridEvent
+	Response string `json:"response"`
+	Attempt  string `json:"attempt"`
+}
+
+type SendgridDeliveredEvent struct {
+	SendgridEvent
+	Response string `json:"response"`
+}
+
+type SendgridOpenEvent struct {
+	SendgridEvent
+	UserAgent string `json:"useragent"`
+	IP        string `json:"ip"`
+}
+
+type SendgridClickEvent struct {
+	SendgridOpenEvent
+	URL string `json:"url"`
+}
+
+type SendgridBounceEvent struct {
+	SendgridEvent
+	Reason string `json:"reason"`
+	Status string `json:"status"`
+}
+
+type SendgridDroppedEvent struct {
+	SendgridEvent
+	Reason string `json:"reason"`
+	Status string `json:"status"`
+}
+
+type SendgridGroupUnsubscribeEvent struct {
+	SendgridOpenEvent
+	URL        string `json:"url"`
+	ASMGroupID int    `json:"asm_group_id"`
+}
+
+type SendgridGroupResubscribeEvent struct {
+	SendgridOpenEvent
+	URL        string `json:"url"`
+	ASMGroupID int    `json:"asm_group_id"`
+}
+
+// Events with no additional fields can use the base Event struct
+type SendgridProcessedEvent SendgridEvent
+type SendgridSpamReportEvent SendgridEvent
+type SendgridUnsubscribeEvent SendgridEvent
