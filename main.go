@@ -19,7 +19,10 @@ func main() {
 
 	kafkaBrokers := []string{os.Getenv("KAFKA_BROKERS")}
 	emailTopic := os.Getenv("KAFKA_EMAIL_TOPIC")
-	webhookTopic := os.Getenv("KAFKA_WEBHOOK_TOPIC")
+	sendgridWebhookTopic := os.Getenv("WEBHOOK_TOPIC_SENDGRID")
+	postmarkWebhookTopic := os.Getenv("WEBHOOK_TOPIC_POSTMARK")
+	socketlabsWebhookTopic := os.Getenv("WEBHOOK_TOPIC_SOCKETLABS")
+	sparkpostWebhookTopic := os.Getenv("WEBHOOK_TOPIC_SPARKPOST")
 	offsetReset := os.Getenv("KAFKA_OFFSET_RESET")
 
 	// Set the offset reset policy based on the environment variable
@@ -44,8 +47,17 @@ func main() {
 	// Consume messages from the 'emails' topic
 	consumeTopic(consumer, emailTopic, config, ProcessEmailMessages)
 
-	// Consume messages from the 'webhook-events' topic
-	consumeTopic(consumer, webhookTopic, config, ProcessWebhookMessages)
+	// Consume messages from the 'webhook-events-sendgrid' topic
+	consumeTopic(consumer, sendgridWebhookTopic, config, ProcessSendgridEvents)
+
+	// Consume messages from the 'webhook-events-postmark' topic
+	consumeTopic(consumer, postmarkWebhookTopic, config, ProcessWebhookMessages)
+
+	// Consume messages from the 'webhook-events-socketlabs' topic
+	consumeTopic(consumer, socketlabsWebhookTopic, config, ProcessWebhookMessages)
+
+	// Consume messages from the 'webhook-events-sparkpost' topic
+	consumeTopic(consumer, sparkpostWebhookTopic, config, ProcessWebhookMessages)
 
 	// Wait forever
 	<-context.Background().Done()
@@ -60,6 +72,7 @@ func consumeTopic(consumer sarama.Consumer, topic string, config *sarama.Config,
 	rand.Seed(uint64(time.Now().UnixNano())) // Seed the random number generator
 	for _, partition := range partitionList {
 		pc, err := consumer.ConsumePartition(topic, partition, config.Consumer.Offsets.Initial)
+		// pc, err := consumer.ConsumePartition(topic, partition, 1)
 		if err != nil {
 			log.Fatalf("Failed to start consumer for partition %d on topic %s: %v", partition, topic, err)
 		}
