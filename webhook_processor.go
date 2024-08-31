@@ -1,12 +1,21 @@
 package main
 
 import (
-	"log"
-
 	"github.com/IBM/sarama"
 )
 
 func ProcessWebhookMessages(msg *sarama.ConsumerMessage) {
-	// Implement webhook message processing logic
-	log.Printf("Processing webhook message: %s", string(msg.Value))
+
+}
+
+type UniversalEvent struct {
+	EventID        string
+	Timestamp      string
+	Provider       string
+	EventType      string
+	Recipient      string
+	MessageID      string
+	Reason         string
+	RawReason      string
+	AdditionalData map[string]interface{}
 }
