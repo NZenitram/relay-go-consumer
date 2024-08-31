@@ -8,6 +8,9 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
+
+	"github.com/IBM/sarama"
 )
 
 type PostMarkMessage struct {
@@ -121,6 +124,179 @@ func mapEmailMessageToPostmark(emailMessage EmailMessage) PostMarkMessage {
 		}
 	}
 	return postMarkMessage
+}
+
+func ProcessPostmarkEvents(msg *sarama.ConsumerMessage) {
+	var payload struct {
+		Headers json.RawMessage `json:"headers"`
+		Body    json.RawMessage `json:"body"`
+	}
+	err := json.Unmarshal(msg.Value, &payload)
+	if err != nil {
+		fmt.Printf("Failed to unmarshal message: %v\n", err)
+		return
+	}
+
+	var baseEvent PostmarkEvent
+	err = json.Unmarshal(payload.Body, &baseEvent)
+	if err != nil {
+		fmt.Printf("Failed to unmarshal base event: %v\n", err)
+		return
+	}
+
+	var event PostmarkEventUnmarshaler
+
+	switch baseEvent.RecordType {
+	case "Delivery":
+		event = &PostmarkDeliveryEvent{}
+	case "Bounce":
+		event = &PostmarkBounceEvent{}
+	case "SpamComplaint":
+		event = &PostmarkSpamComplaintEvent{}
+	case "Open":
+		event = &PostmarkOpenEvent{}
+	case "Click":
+		event = &PostmarkClickEvent{}
+	case "SubscriptionChange":
+		event = &PostmarkSubscriptionChangeEvent{}
+	default:
+		fmt.Printf("Unknown event type: %s\n", baseEvent.RecordType)
+		return
+	}
+
+	err = event.UnmarshalPostmarkEvent(payload.Body)
+	if err != nil {
+		fmt.Printf("Failed to unmarshal event: %v\n", err)
+		return
+	}
+
+	fmt.Printf("Event: %+v\n", event)
+	saveToDatabase(event)
+}
+
+type PostmarkEvent struct {
+	RecordType  string                 `json:"RecordType"`
+	ID          int64                  `json:"ID"`
+	ServerID    int                    `json:"ServerID"`
+	MessageID   string                 `json:"MessageID"`
+	Recipient   string                 `json:"Recipient"`
+	Tag         string                 `json:"Tag"`
+	DeliveredAt time.Time              `json:"DeliveredAt"`
+	Details     string                 `json:"Details"`
+	Metadata    map[string]interface{} `json:"Metadata"`
+	Provider    string
+}
+
+type PostmarkEventUnmarshaler interface {
+	UnmarshalPostmarkEvent(data []byte) error
+}
+
+type PostmarkDeliveryEvent struct {
+	PostmarkEvent
+}
+
+func (p *PostmarkDeliveryEvent) UnmarshalPostmarkEvent(data []byte) error {
+	if err := json.Unmarshal(data, p); err != nil {
+		return err
+	}
+	p.Provider = "Postmark"
+	return nil
+}
+
+type PostmarkBounceEvent struct {
+	PostmarkEvent
+	Type          string    `json:"Type"`
+	TypeCode      int       `json:"TypeCode"`
+	Name          string    `json:"Name"`
+	Description   string    `json:"Description"`
+	Email         string    `json:"Email"`
+	BouncedAt     time.Time `json:"BouncedAt"`
+	DumpAvailable bool      `json:"DumpAvailable"`
+	Inactive      bool      `json:"Inactive"`
+	CanActivate   bool      `json:"CanActivate"`
+	Subject       string    `json:"Subject"`
+	Content       string    `json:"Content"`
+}
+
+func (p *PostmarkBounceEvent) UnmarshalPostmarkEvent(data []byte) error {
+	if err := json.Unmarshal(data, p); err != nil {
+		return err
+	}
+	p.Provider = "Postmark"
+	return nil
+}
+
+type PostmarkSpamComplaintEvent struct {
+	PostmarkEvent
+	FromEmail   string    `json:"FromEmail"`
+	BouncedAt   time.Time `json:"BouncedAt"`
+	Subject     string    `json:"Subject"`
+	MailboxHash string    `json:"MailboxHash"`
+}
+
+func (p *PostmarkSpamComplaintEvent) UnmarshalPostmarkEvent(data []byte) error {
+	if err := json.Unmarshal(data, p); err != nil {
+		return err
+	}
+	p.Provider = "Postmark"
+	return nil
+}
+
+type PostmarkOpenEvent struct {
+	PostmarkEvent
+	FirstOpen     bool   `json:"FirstOpen"`
+	UserAgent     string `json:"UserAgent"`
+	OS            string `json:"OS"`
+	Platform      string `json:"Platform"`
+	Client        string `json:"Client"`
+	ReadSeconds   int    `json:"ReadSeconds"`
+	Geo           string `json:"Geo"`
+	MessageStream string `json:"MessageStream"`
+}
+
+func (p *PostmarkOpenEvent) UnmarshalPostmarkEvent(data []byte) error {
+	if err := json.Unmarshal(data, p); err != nil {
+		return err
+	}
+	p.Provider = "Postmark"
+	return nil
+}
+
+type PostmarkClickEvent struct {
+	PostmarkEvent
+	OriginalLink  string `json:"OriginalLink"`
+	UserAgent     string `json:"UserAgent"`
+	OS            string `json:"OS"`
+	Platform      string `json:"Platform"`
+	Client        string `json:"Client"`
+	Geo           string `json:"Geo"`
+	MessageStream string `json:"MessageStream"`
+}
+
+func (p *PostmarkClickEvent) UnmarshalPostmarkEvent(data []byte) error {
+	if err := json.Unmarshal(data, p); err != nil {
+		return err
+	}
+	p.Provider = "Postmark"
+	return nil
+}
+
+type PostmarkSubscriptionChangeEvent struct {
+	PostmarkEvent
+	SuppressSending   bool      `json:"SuppressSending"`
+	SuppressionReason string    `json:"SuppressionReason"`
+	ChangedAt         time.Time `json:"ChangedAt"`
+	Source            string    `json:"Source"`
+	SourceType        string    `json:"SourceType"`
+	MessageStream     string    `json:"MessageStream"`
+}
+
+func (p *PostmarkSubscriptionChangeEvent) UnmarshalPostmarkEvent(data []byte) error {
+	if err := json.Unmarshal(data, p); err != nil {
+		return err
+	}
+	p.Provider = "Postmark"
+	return nil
 }
 
 // PostMarkDeliveryEvent struct
