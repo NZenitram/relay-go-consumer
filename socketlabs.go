@@ -86,13 +86,10 @@ func SendEmailWithSocketLabs(emailMessage EmailMessage) {
 // 	return "Unknown"
 // }
 
-// SocketLabsComplaintEvent struct
-type SocketLabsComplaintEvent struct {
+// Base struct for common fields
+type SocketLabsBaseEvent struct {
+	Provider     string `json:"Provider"`
 	Type         string `json:"Type"`
-	UserAgent    string `json:"UserAgent"`
-	From         string `json:"From"`
-	To           string `json:"To"`
-	Length       int    `json:"Length"`
 	DateTime     string `json:"DateTime"`
 	MailingId    string `json:"MailingId"`
 	MessageId    string `json:"MessageId"`
@@ -103,9 +100,18 @@ type SocketLabsComplaintEvent struct {
 	SecretKey    string `json:"SecretKey"`
 }
 
+// SocketLabsComplaintEvent struct
+type SocketLabsComplaintEvent struct {
+	SocketLabsBaseEvent
+	UserAgent string `json:"UserAgent"`
+	From      string `json:"From"`
+	To        string `json:"To"`
+	Length    int    `json:"Length"`
+}
+
 // SocketLabsFailedEvent struct
 type SocketLabsFailedEvent struct {
-	Type           string         `json:"Type"`
+	SocketLabsBaseEvent
 	BounceStatus   string         `json:"BounceStatus"`
 	DiagnosticCode string         `json:"DiagnosticCode"`
 	FromAddress    string         `json:"FromAddress"`
@@ -114,85 +120,45 @@ type SocketLabsFailedEvent struct {
 	Reason         string         `json:"Reason"`
 	RemoteMta      string         `json:"RemoteMta"`
 	Data           SocketLabsData `json:"Data"`
-	DateTime       string         `json:"DateTime"`
-	MailingId      string         `json:"MailingId"`
-	MessageId      string         `json:"MessageId"`
-	Address        string         `json:"Address"`
-	ServerId       int            `json:"ServerId"`
-	SubaccountId   int            `json:"SubaccountId"`
-	IpPoolId       int            `json:"IpPoolId"`
-	SecretKey      string         `json:"SecretKey"`
 }
 
 // SocketLabsTrackingEvent struct
 type SocketLabsTrackingEvent struct {
+	SocketLabsBaseEvent
 	TrackingType int            `json:"TrackingType"`
-	Type         string         `json:"Type"`
 	ClientIp     string         `json:"ClientIp"`
 	Url          string         `json:"Url"`
 	UserAgent    string         `json:"UserAgent"`
 	Data         SocketLabsData `json:"Data"`
-	DateTime     string         `json:"DateTime"`
-	MailingId    string         `json:"MailingId"`
-	MessageId    string         `json:"MessageId"`
-	Address      string         `json:"Address"`
-	ServerId     int            `json:"ServerId"`
-	SubaccountId int            `json:"SubaccountId"`
-	IpPoolId     int            `json:"IpPoolId"`
-	SecretKey    string         `json:"SecretKey"`
 }
 
 // SocketLabsDeliveredEvent struct
 type SocketLabsDeliveredEvent struct {
-	Type         string         `json:"Type"`
-	Response     string         `json:"Response"`
-	LocalIp      string         `json:"LocalIp"`
-	RemoteMta    string         `json:"RemoteMta"`
-	Data         SocketLabsData `json:"Data"`
-	DateTime     string         `json:"DateTime"`
-	MailingId    string         `json:"MailingId"`
-	MessageId    string         `json:"MessageId"`
-	Address      string         `json:"Address"`
-	ServerId     int            `json:"ServerId"`
-	SubaccountId int            `json:"SubaccountId"`
-	IpPoolId     int            `json:"IpPoolId"`
-	SecretKey    string         `json:"SecretKey"`
+	SocketLabsBaseEvent
+	Response  string         `json:"Response"`
+	LocalIp   string         `json:"LocalIp"`
+	RemoteMta string         `json:"RemoteMta"`
+	Data      SocketLabsData `json:"Data"`
 }
 
 // SocketLabsDeferredEvent struct
 type SocketLabsDeferredEvent struct {
+	SocketLabsBaseEvent
 	FromAddress  string         `json:"FromAddress"`
 	DeferralCode int            `json:"DeferralCode"`
 	Reason       string         `json:"Reason"`
-	Type         string         `json:"Type"`
 	Data         SocketLabsData `json:"Data"`
-	DateTime     string         `json:"DateTime"`
-	MailingId    string         `json:"MailingId"`
-	MessageId    string         `json:"MessageId"`
-	Address      string         `json:"Address"`
-	ServerId     int            `json:"ServerId"`
-	SubaccountId int            `json:"SubaccountId"`
-	IpPoolId     int            `json:"IpPoolId"`
-	SecretKey    string         `json:"SecretKey"`
 }
 
 // SocketLabsQueuedEvent struct
 type SocketLabsQueuedEvent struct {
-	FromAddress  string         `json:"FromAddress"`
-	Subject      string         `json:"Subject"`
-	MessageSize  int            `json:"MessageSize"`
-	Type         string         `json:"Type"`
-	ClientIp     string         `json:"ClientIp"`
-	Source       string         `json:"Source"`
-	Data         SocketLabsData `json:"Data"`
-	DateTime     string         `json:"DateTime"`
-	MailingId    string         `json:"MailingId"`
-	MessageId    string         `json:"MessageId"`
-	Address      string         `json:"Address"`
-	ServerId     int            `json:"ServerId"`
-	SubaccountId int            `json:"SubaccountId"`
-	IpPoolId     int            `json:"IpPoolId"`
-	SecretKey    string         `json:"SecretKey"`
+	SocketLabsBaseEvent
+	FromAddress string         `json:"FromAddress"`
+	Subject     string         `json:"Subject"`
+	MessageSize int            `json:"MessageSize"`
+	ClientIp    string         `json:"ClientIp"`
+	Source      string         `json:"Source"`
+	Data        SocketLabsData `json:"Data"`
 }
 
 // Supporting struct for Data field

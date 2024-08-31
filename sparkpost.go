@@ -75,6 +75,7 @@ func SendEmailWithSparkPost(emailMessage EmailMessage) {
 
 // Base struct for common fields
 type SparkPostEvent struct {
+	Provider              string                 `json:"provider"`
 	AmpEnabled            bool                   `json:"amp_enabled,omitempty"`
 	BounceClass           string                 `json:"bounce_class,omitempty"`
 	CampaignID            string                 `json:"campaign_id,omitempty"`
@@ -274,19 +275,16 @@ type SparkPostRelayPermFailEvent struct {
 	OutboundTLS string `json:"outbound_tls,omitempty"`
 }
 
-// SparkPostABTestCompletedEvent struct
 type SparkPostABTestCompletedEvent struct {
 	SparkPostEvent
 	ABTest ABTestDetails `json:"ab_test"`
 }
 
-// SparkPostABTestCancelledEvent struct
 type SparkPostABTestCancelledEvent struct {
 	SparkPostEvent
 	ABTest ABTestDetails `json:"ab_test"`
 }
 
-// SparkPostIngestSuccessEvent struct
 type SparkPostIngestSuccessEvent struct {
 	SparkPostEvent
 	BatchID             string `json:"batch_id"`
@@ -295,7 +293,6 @@ type SparkPostIngestSuccessEvent struct {
 	NumberDuplicates    int    `json:"number_duplicates"`
 }
 
-// SparkPostIngestErrorEvent struct
 type SparkPostIngestErrorEvent struct {
 	SparkPostIngestSuccessEvent
 	ErrorType    string `json:"error_type"`
@@ -304,7 +301,6 @@ type SparkPostIngestErrorEvent struct {
 	Href         string `json:"href"`
 }
 
-// Supporting struct for AB Test Details
 type ABTestDetails struct {
 	ID                string         `json:"id"`
 	Name              string         `json:"name"`
@@ -316,7 +312,6 @@ type ABTestDetails struct {
 	WinningTemplateID string         `json:"winning_template_id,omitempty"`
 }
 
-// Supporting struct for Template Information
 type TemplateInfo struct {
 	TemplateID         string  `json:"template_id"`
 	CountUniqueClicked int     `json:"count_unique_clicked"`

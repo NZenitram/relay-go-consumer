@@ -124,115 +124,79 @@ func mapEmailMessageToPostmark(emailMessage EmailMessage) PostMarkMessage {
 }
 
 // PostMarkDeliveryEvent struct
-type PostMarkDeliveryEvent struct {
+
+// Base struct for common fields
+type PostMarkBaseEvent struct {
+	Provider      string                 `json:"Provider"`
 	RecordType    string                 `json:"RecordType"`
-	ServerID      int                    `json:"ServerID"`
 	MessageStream string                 `json:"MessageStream"`
 	MessageID     string                 `json:"MessageID"`
-	Recipient     string                 `json:"Recipient"`
-	Tag           string                 `json:"Tag"`
-	DeliveredAt   string                 `json:"DeliveredAt"`
-	Details       string                 `json:"Details"`
-	Metadata      map[string]interface{} `json:"Metadata"`
+	Recipient     string                 `json:"Recipient,omitempty"`
+	Tag           string                 `json:"Tag,omitempty"`
+	Metadata      map[string]interface{} `json:"Metadata,omitempty"`
+}
+
+// PostMarkDeliveryEvent struct
+type PostMarkDeliveryEvent struct {
+	PostMarkBaseEvent
+	ServerID    int    `json:"ServerID"`
+	DeliveredAt string `json:"DeliveredAt"`
+	Details     string `json:"Details"`
 }
 
 // PostMarkBounceEvent struct
 type PostMarkBounceEvent struct {
-	ID            int                    `json:"ID"`
-	Type          string                 `json:"Type"`
-	RecordType    string                 `json:"RecordType"`
-	TypeCode      int                    `json:"TypeCode"`
-	Tag           string                 `json:"Tag"`
-	MessageID     string                 `json:"MessageID"`
-	Details       string                 `json:"Details"`
-	Email         string                 `json:"Email"`
-	From          string                 `json:"From"`
-	BouncedAt     string                 `json:"BouncedAt"`
-	Inactive      bool                   `json:"Inactive"`
-	DumpAvailable bool                   `json:"DumpAvailable"`
-	CanActivate   bool                   `json:"CanActivate"`
-	Subject       string                 `json:"Subject"`
-	ServerID      int                    `json:"ServerID"`
-	MessageStream string                 `json:"MessageStream"`
-	Content       string                 `json:"Content"`
-	Name          string                 `json:"Name"`
-	Description   string                 `json:"Description"`
-	Metadata      map[string]interface{} `json:"Metadata"`
+	PostMarkBaseEvent
+	ID            int    `json:"ID"`
+	Type          string `json:"Type"`
+	TypeCode      int    `json:"TypeCode"`
+	Details       string `json:"Details"`
+	Email         string `json:"Email"`
+	From          string `json:"From"`
+	BouncedAt     string `json:"BouncedAt"`
+	Inactive      bool   `json:"Inactive"`
+	DumpAvailable bool   `json:"DumpAvailable"`
+	CanActivate   bool   `json:"CanActivate"`
+	Subject       string `json:"Subject"`
+	ServerID      int    `json:"ServerID"`
+	Content       string `json:"Content"`
+	Name          string `json:"Name"`
+	Description   string `json:"Description"`
 }
 
 // PostMarkSpamComplaintEvent struct
 type PostMarkSpamComplaintEvent struct {
-	ID            int                    `json:"ID"`
-	Type          string                 `json:"Type"`
-	RecordType    string                 `json:"RecordType"`
-	TypeCode      int                    `json:"TypeCode"`
-	Tag           string                 `json:"Tag"`
-	MessageID     string                 `json:"MessageID"`
-	Details       string                 `json:"Details"`
-	Email         string                 `json:"Email"`
-	From          string                 `json:"From"`
-	BouncedAt     string                 `json:"BouncedAt"`
-	Inactive      bool                   `json:"Inactive"`
-	DumpAvailable bool                   `json:"DumpAvailable"`
-	CanActivate   bool                   `json:"CanActivate"`
-	Subject       string                 `json:"Subject"`
-	ServerID      int                    `json:"ServerID"`
-	MessageStream string                 `json:"MessageStream"`
-	Content       string                 `json:"Content"`
-	Name          string                 `json:"Name"`
-	Description   string                 `json:"Description"`
-	Metadata      map[string]interface{} `json:"Metadata"`
+	PostMarkBounceEvent
 }
 
 // PostMarkOpenEvent struct
 type PostMarkOpenEvent struct {
-	RecordType    string                 `json:"RecordType"`
-	MessageStream string                 `json:"MessageStream"`
-	Metadata      map[string]interface{} `json:"Metadata"`
-	FirstOpen     bool                   `json:"FirstOpen"`
-	Recipient     string                 `json:"Recipient"`
-	MessageID     string                 `json:"MessageID"`
-	ReceivedAt    string                 `json:"ReceivedAt"`
-	Platform      string                 `json:"Platform"`
-	ReadSeconds   int                    `json:"ReadSeconds"`
-	Tag           string                 `json:"Tag"`
-	UserAgent     string                 `json:"UserAgent"`
-	OS            PostMarkOSInfo         `json:"OS"`
-	Client        PostMarkClientInfo     `json:"Client"`
-	Geo           PostMarkGeoInfo        `json:"Geo"`
+	PostMarkBaseEvent
+	FirstOpen   bool               `json:"FirstOpen"`
+	ReceivedAt  string             `json:"ReceivedAt"`
+	Platform    string             `json:"Platform"`
+	ReadSeconds int                `json:"ReadSeconds"`
+	UserAgent   string             `json:"UserAgent"`
+	OS          PostMarkOSInfo     `json:"OS"`
+	Client      PostMarkClientInfo `json:"Client"`
+	Geo         PostMarkGeoInfo    `json:"Geo"`
 }
 
 // PostMarkClickEvent struct
 type PostMarkClickEvent struct {
-	RecordType    string                 `json:"RecordType"`
-	MessageStream string                 `json:"MessageStream"`
-	Metadata      map[string]interface{} `json:"Metadata"`
-	Recipient     string                 `json:"Recipient"`
-	MessageID     string                 `json:"MessageID"`
-	ReceivedAt    string                 `json:"ReceivedAt"`
-	Platform      string                 `json:"Platform"`
-	ClickLocation string                 `json:"ClickLocation"`
-	OriginalLink  string                 `json:"OriginalLink"`
-	Tag           string                 `json:"Tag"`
-	UserAgent     string                 `json:"UserAgent"`
-	OS            PostMarkOSInfo         `json:"OS"`
-	Client        PostMarkClientInfo     `json:"Client"`
-	Geo           PostMarkGeoInfo        `json:"Geo"`
+	PostMarkOpenEvent
+	ClickLocation string `json:"ClickLocation"`
+	OriginalLink  string `json:"OriginalLink"`
 }
 
 // PostMarkSubscriptionChangeEvent struct
 type PostMarkSubscriptionChangeEvent struct {
-	RecordType        string                 `json:"RecordType"`
-	MessageID         string                 `json:"MessageID"`
-	ServerID          int                    `json:"ServerID"`
-	MessageStream     string                 `json:"MessageStream"`
-	ChangedAt         string                 `json:"ChangedAt"`
-	Recipient         string                 `json:"Recipient"`
-	Origin            string                 `json:"Origin"`
-	SuppressSending   bool                   `json:"SuppressSending"`
-	SuppressionReason string                 `json:"SuppressionReason"`
-	Tag               string                 `json:"Tag"`
-	Metadata          map[string]interface{} `json:"Metadata"`
+	PostMarkBaseEvent
+	ServerID          int    `json:"ServerID"`
+	ChangedAt         string `json:"ChangedAt"`
+	Origin            string `json:"Origin"`
+	SuppressSending   bool   `json:"SuppressSending"`
+	SuppressionReason string `json:"SuppressionReason"`
 }
 
 // Supporting structs for Open and Click events
