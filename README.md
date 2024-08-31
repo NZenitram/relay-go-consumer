@@ -83,6 +83,84 @@ This JSON structure allows for detailed customization of the email sending proce
 }
 ```
 
+```json
+{
+	"headers": {
+		"Accept": [
+			"*/*"
+		],
+		"Accept-Encoding": [
+			"gzip"
+		],
+		"Content-Length": [
+			"1417"
+		],
+		"Content-Type": [
+			"application/json"
+		],
+		"User-Agent": [
+			"curl/8.7.1"
+		],
+		"X-Forwarded-For": [
+			"67.1.195.103"
+		],
+		"X-Forwarded-Host": [
+			"horribly-striking-joey.ngrok-free.app"
+		],
+		"X-Forwarded-Proto": [
+			"https"
+		]
+	},
+	"body": {
+		"from": "Twitter Zen <test@esprelay.com>",
+		"to": [
+			"\"Nick Martinez, Jr.\" <twitter1@nzenitram.com>",
+			"Mick Nartinez <nzenitram@nzenitram.com>",
+			"Admin ESP <admin@esprelay.com>",
+			"Admin Webhook <admin@webhookrelays.com>",
+			"Test ESP <test@esprelay.com>",
+			"YF CLickALeague <yourfriends@clickaleague.com>"
+		],
+		"cc": [
+			"nick1@nzenitram.com"
+		],
+		"bcc": [
+			"support@nzenitram.com"
+		],
+		"subject": "Updating the subject to reflect the test",
+		"textbody": "",
+		"htmlbody": "<p>This is the <strong>HTML</strong> body of the email.</p>",
+		"attachments": [
+			{
+				"name": "example.txt",
+				"contenttype": "text/plain",
+				"content": "SGVsbG8gd29ybGQh"
+			}
+		],
+		"headers": {
+			"X-Custom-Header-1": "Custom Value 1",
+			"X-Custom-Header-2": "Custom Value 2"
+		},
+		"data": {
+			"TrackOpens": true,
+			"TrackLinks": "HtmlOnly",
+			"MessageStream": "outbound"
+		},
+		"credentials": {
+    "SocketLabsServerID": "12345",
+    "SocketLabsAPIkey": "12345abcdefg",
+    "SocketLabsWeight": "25",
+    "PostmarkServerToken": "555555555-abcd-5555-9279-2bdaf804f19f",
+    "PostmarkAPIURL": "https://api.postmarkapp.com/email",
+    "PostmarkWeight": "25",
+			"SendgridAPIKey": "SG.asdfasfasdfasfd---asdf.x_x7thLJSL0muwesXAPVgZcgA0",
+			"SendgridWeight": "25",
+			"SparkpostAPIKey": "asdfasdf3224512345sadfasdf",
+			"SparkpostWeight": "25"
+		}
+	}
+}
+```
 ### Curl with Text Body, Friendly From, Headers, and Attachment
 
 ```bash
@@ -232,4 +310,130 @@ curl "https://api.postmarkapp.com/email" \
   "TrackLinks": "HtmlOnly",
   "MessageStream": "outbound"
 }'
+```
+
+### Webhook Curl SendGrid Full
+
+```
+curl -X POST http://localhost:8888 -H "Content-Type: application/json" -d '[
+  {
+    "email": "example@test.com",
+    "timestamp": 1724813706,
+    "smtp-id": "\u003c14c5d75ce93.dfd.64b469@ismtpd-555\u003e",
+    "event": "processed",
+    "category": ["cat facts"],
+    "sg_event_id": "OU7xod-BfvaSsHt7yr90JQ==",
+    "sg_message_id": "14c5d75ce93.dfd.64b469.filter0001.16648.5515E0B88.0"
+  },
+  {
+    "email": "example@test.com",
+    "timestamp": 1724813706,
+    "smtp-id": "\u003c14c5d75ce93.dfd.64b469@ismtpd-555\u003e",
+    "event": "deferred",
+    "category": ["cat facts"],
+    "sg_event_id": "8kZc22_NI4O5txLANpCsew==",
+    "sg_message_id": "14c5d75ce93.dfd.64b469.filter0001.16648.5515E0B88.0",
+    "response": "400 try again later",
+    "attempt": "5"
+  },
+  {
+    "email": "example@test.com",
+    "timestamp": 1724813706,
+    "smtp-id": "\u003c14c5d75ce93.dfd.64b469@ismtpd-555\u003e",
+    "event": "delivered",
+    "category": ["cat facts"],
+    "sg_event_id": "B7MRBVJgwGSlUneYkWM4AA==",
+    "sg_message_id": "14c5d75ce93.dfd.64b469.filter0001.16648.5515E0B88.0",
+    "response": "250 OK"
+  },
+  {
+    "email": "example@test.com",
+    "timestamp": 1724813706,
+    "smtp-id": "\u003c14c5d75ce93.dfd.64b469@ismtpd-555\u003e",
+    "event": "open",
+    "category": ["cat facts"],
+    "sg_event_id": "FSB8awrHyezzlKBNghxAIA==",
+    "sg_message_id": "14c5d75ce93.dfd.64b469.filter0001.16648.5515E0B88.0",
+    "useragent": "Mozilla/4.0 (compatible; MSIE 6.1; Windows XP; .NET CLR 1.1.4322; .NET CLR 2.0.50727)",
+    "ip": "255.255.255.255"
+  },
+  {
+    "email": "example@test.com",
+    "timestamp": 1724813706,
+    "smtp-id": "\u003c14c5d75ce93.dfd.64b469@ismtpd-555\u003e",
+    "event": "click",
+    "category": ["cat facts"],
+    "sg_event_id": "iPkmY5nE7yl4pcRpn4l88g==",
+    "sg_message_id": "14c5d75ce93.dfd.64b469.filter0001.16648.5515E0B88.0",
+    "useragent": "Mozilla/4.0 (compatible; MSIE 6.1; Windows XP; .NET CLR 1.1.4322; .NET CLR 2.0.50727)",
+    "ip": "255.255.255.255",
+    "url": "http://www.sendgrid.com/"
+  },
+  {
+    "email": "example@test.com",
+    "timestamp": 1724813706,
+    "smtp-id": "\u003c14c5d75ce93.dfd.64b469@ismtpd-555\u003e",
+    "event": "bounce",
+    "category": ["cat facts"],
+    "sg_event_id": "Edt5m61-GwaKBAd9Yeithg==",
+    "sg_message_id": "14c5d75ce93.dfd.64b469.filter0001.16648.5515E0B88.0",
+    "reason": "500 unknown recipient",
+    "status": "5.0.0"
+  },
+  {
+    "email": "example@test.com",
+    "timestamp": 1724813706,
+    "smtp-id": "\u003c14c5d75ce93.dfd.64b469@ismtpd-555\u003e",
+    "event": "dropped",
+    "category": ["cat facts"],
+    "sg_event_id": "oLooansnxksZpNIrB2mGjw==",
+    "sg_message_id": "14c5d75ce93.dfd.64b469.filter0001.16648.5515E0B88.0",
+    "reason": "Bounced Address",
+    "status": "5.0.0"
+  },
+  {
+    "email": "example@test.com",
+    "timestamp": 1724813706,
+    "smtp-id": "\u003c14c5d75ce93.dfd.64b469@ismtpd-555\u003e",
+    "event": "spamreport",
+    "category": ["cat facts"],
+    "sg_event_id": "Hw-CL0uEOXrCijrpCrOFBA==",
+    "sg_message_id": "14c5d75ce93.dfd.64b469.filter0001.16648.5515E0B88.0"
+  },
+  {
+    "email": "example@test.com",
+    "timestamp": 1724813706,
+    "smtp-id": "\u003c14c5d75ce93.dfd.64b469@ismtpd-555\u003e",
+    "event": "unsubscribe",
+    "category": ["cat facts"],
+    "sg_event_id": "Z0n3N7FDyTCGL3xtb5c6Cw==",
+    "sg_message_id": "14c5d75ce93.dfd.64b469.filter0001.16648.5515E0B88.0"
+  },
+  {
+    "email": "example@test.com",
+    "timestamp": 1724813706,
+    "smtp-id": "\u003c14c5d75ce93.dfd.64b469@ismtpd-555\u003e",
+    "event": "group_unsubscribe",
+    "category": ["cat facts"],
+    "sg_event_id": "VCSBJ7b1bRBwoWs9t0KRIw==",
+    "sg_message_id": "14c5d75ce93.dfd.64b469.filter0001.16648.5515E0B88.0",
+    "useragent": "Mozilla/4.0 (compatible; MSIE 6.1; Windows XP; .NET CLR 1.1.4322; .NET CLR 2.0.50727)",
+    "ip": "255.255.255.255",
+    "url": "http://www.sendgrid.com/",
+    "asm_group_id": 10
+  },
+  {
+    "email": "example@test.com",
+    "timestamp": 1724813706,
+    "smtp-id": "\u003c14c5d75ce93.dfd.64b469@ismtpd-555\u003e",
+    "event": "group_resubscribe",
+    "category": ["cat facts"],
+    "sg_event_id": "9f_-AVK6xVQ8flu_AeFQiw==",
+    "sg_message_id": "14c5d75ce93.dfd.64b469.filter0001.16648.5515E0B88.0",
+    "useragent": "Mozilla/4.0 (compatible; MSIE 6.1; Windows XP; .NET CLR 1.1.4322; .NET CLR 2.0.50727)",
+    "ip": "255.255.255.255",
+    "url": "http://www.sendgrid.com/",
+    "asm_group_id": 10
+  }
+]'
 ```
