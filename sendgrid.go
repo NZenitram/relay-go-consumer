@@ -7,7 +7,6 @@ import (
 	"log"
 
 	"github.com/IBM/sarama"
-	"github.com/mitchellh/mapstructure"
 	"github.com/sendgrid/sendgrid-go"
 	"github.com/sendgrid/sendgrid-go/helpers/mail"
 )
@@ -70,10 +69,76 @@ func SendEmailWithSendGrid(emailMessage EmailMessage) {
 	}
 }
 
+func ProcessSendgridEvents(msg *sarama.ConsumerMessage) {
+	var payload struct {
+		Headers json.RawMessage   `json:"headers"`
+		Body    []json.RawMessage `json:"body"`
+	}
+	err := json.Unmarshal(msg.Value, &payload)
+	if err != nil {
+		fmt.Printf("Failed to unmarshal message: %v\n", err)
+		return
+	}
+
+	for _, eventData := range payload.Body {
+		var baseEvent SendgridEvent
+		err := json.Unmarshal(eventData, &baseEvent)
+		if err != nil {
+			fmt.Printf("Failed to unmarshal base event: %v\n", err)
+			continue
+		}
+
+		var event SendgridEventUnmarshaler
+
+		switch baseEvent.Event {
+		case "processed":
+			event = &SendgridProcessedEvent{}
+		case "deferred":
+			event = &SendgridDeferredEvent{}
+		case "delivered":
+			event = &SendgridDeliveredEvent{}
+		case "open":
+			event = &SendgridOpenEvent{}
+		case "click":
+			event = &SendgridClickEvent{}
+		case "bounce":
+			event = &SendgridBounceEvent{}
+		case "dropped":
+			event = &SendgridDroppedEvent{}
+		case "spamreport":
+			event = &SendgridSpamReportEvent{}
+		case "unsubscribe":
+			event = &SendgridUnsubscribeEvent{}
+		case "group_unsubscribe":
+			event = &SendgridGroupUnsubscribeEvent{}
+		case "group_resubscribe":
+			event = &SendgridGroupResubscribeEvent{}
+		default:
+			fmt.Printf("Unknown event type: %s\n", baseEvent.Event)
+			continue
+		}
+
+		err = event.UnmarshalSendgridEvent(eventData)
+		if err != nil {
+			fmt.Printf("Failed to unmarshal event: %v\n", err)
+			continue
+		}
+
+		fmt.Printf("Event: %+v\n", event)
+		saveToDatabase(event)
+	}
+}
+
+// Placeholder function to save events to a database
+func saveToDatabase(event interface{}) {
+	// TODO: Implement database saving logic
+	fmt.Printf("Saving event to database: %+v\n", event)
+}
+
 // WebhookPayload represents the incoming webhook payload
 type WebhookPayload struct {
 	Headers map[string][]string `json:"headers"`
-	Body    string              `json:"body"`
+	Body    []SendgridEvent     `json:"body"`
 }
 
 // WebhookHeaders represents the headers extracted from the webhook payload
@@ -89,104 +154,9 @@ type WebhookHeaders struct {
 	XTwilioEmailEventWebhookTimestamp []string `json:"X-Twilio-Email-Event-Webhook-Timestamp"`
 }
 
-// ProcessSendgridEvents processes the Sendgrid events from the webhook payload
-func ProcessSendgridEvents(msg *sarama.ConsumerMessage) {
-	// Unmarshal the message value into a WebhookPayload struct
-	var payload WebhookPayload
-	err := json.Unmarshal(msg.Value, &payload)
-	if err != nil {
-		fmt.Printf("Failed to unmarshal message: %v\n", err)
-		return
-	}
-
-	// Unmarshal the body into an array of SendgridEvent
-	var events []SendgridEvent
-	json.Unmarshal([]byte(payload.Body), &events)
-
-	// Process each event based on its type
-	for _, event := range events {
-		switch event.Event {
-		case "processed":
-			processedEvent := SendgridProcessedEvent(event)
-			// Process the processed event
-			fmt.Printf("Processed event: %+v\n", processedEvent)
-
-		case "deferred":
-			var deferredEvent SendgridDeferredEvent
-			mapstructure.Decode(event, &deferredEvent)
-			// Process the deferred event
-			fmt.Printf("Deferred event: %+v\n", deferredEvent)
-
-		case "delivered":
-			var deliveredEvent SendgridDeliveredEvent
-			mapstructure.Decode(event, &deliveredEvent)
-			// Process the delivered event
-			fmt.Printf("Delivered event: %+v\n", deliveredEvent)
-
-		case "open":
-			var openEvent SendgridOpenEvent
-			mapstructure.Decode(event, &openEvent)
-			// Process the open event
-			fmt.Printf("Open event: %+v\n", openEvent)
-
-		case "click":
-			var clickEvent SendgridClickEvent
-			mapstructure.Decode(event, &clickEvent)
-			// Process the click event
-			fmt.Printf("Click event: %+v\n", clickEvent)
-
-		case "bounce":
-			var bounceEvent SendgridBounceEvent
-			mapstructure.Decode(event, &bounceEvent)
-			// Process the bounce event
-			fmt.Printf("Bounce event: %+v\n", bounceEvent)
-
-		case "dropped":
-			var droppedEvent SendgridDroppedEvent
-			mapstructure.Decode(event, &droppedEvent)
-			// Process the dropped event
-			fmt.Printf("Dropped event: %+v\n", droppedEvent)
-
-		case "spamreport":
-			spamReportEvent := SendgridSpamReportEvent(event)
-			// Process the spam report event
-			fmt.Printf("Spam report event: %+v\n", spamReportEvent)
-
-		case "unsubscribe":
-			unsubscribeEvent := SendgridUnsubscribeEvent(event)
-			// Process the unsubscribe event
-			fmt.Printf("Unsubscribe event: %+v\n", unsubscribeEvent)
-
-		case "group_unsubscribe":
-			var groupUnsubscribeEvent SendgridGroupUnsubscribeEvent
-			mapstructure.Decode(event, &groupUnsubscribeEvent)
-			// Process the group unsubscribe event
-			fmt.Printf("Group unsubscribe event: %+v\n", groupUnsubscribeEvent)
-
-		case "group_resubscribe":
-			var groupResubscribeEvent SendgridGroupResubscribeEvent
-			mapstructure.Decode(event, &groupResubscribeEvent)
-			// Process the group resubscribe event
-			fmt.Printf("Group resubscribe event: %+v\n", groupResubscribeEvent)
-
-		default:
-			fmt.Printf("Unknown event type: %s\n", event.Event)
-		}
-	}
-}
-
-func (e *SendgridEvent) UnmarshalJSON(data []byte) error {
-	type Alias SendgridEvent
-	aux := &struct {
-		*Alias
-	}{
-		Alias: (*Alias)(e),
-	}
-	if err := json.Unmarshal(data, &aux); err != nil {
-		return err
-	}
-	e.Provider = "Sendgrid"
-	return nil
+// SendgridEventUnmarshaler interface
+type SendgridEventUnmarshaler interface {
+	UnmarshalSendgridEvent(data []byte) error
 }
 
 // Base struct for common fields
@@ -201,6 +171,14 @@ type SendgridEvent struct {
 	SGMessageID string   `json:"sg_message_id"`
 }
 
+func (e *SendgridEvent) UnmarshalSendgridEvent(data []byte) error {
+	if err := json.Unmarshal(data, e); err != nil {
+		return err
+	}
+	e.Provider = "Sendgrid"
+	return nil
+}
+
 // Specific structs for events with additional fields
 type SendgridDeferredEvent struct {
 	SendgridEvent
@@ -208,47 +186,148 @@ type SendgridDeferredEvent struct {
 	Attempt  string `json:"attempt"`
 }
 
+func (s *SendgridDeferredEvent) UnmarshalSendgridEvent(data []byte) error {
+	if err := json.Unmarshal(data, s); err != nil {
+		return err
+	}
+	s.Provider = "Sendgrid"
+	return nil
+}
+
+// Implement UnmarshalSendgridEvent for other event types similarly
+// For example:
+
 type SendgridDeliveredEvent struct {
 	SendgridEvent
 	Response string `json:"response"`
 }
 
+func (s *SendgridDeliveredEvent) UnmarshalSendgridEvent(data []byte) error {
+	if err := json.Unmarshal(data, s); err != nil {
+		return err
+	}
+	s.Provider = "Sendgrid"
+	return nil
+}
+
+// SendgridOpenEvent
 type SendgridOpenEvent struct {
 	SendgridEvent
 	UserAgent string `json:"useragent"`
 	IP        string `json:"ip"`
 }
 
+func (s *SendgridOpenEvent) UnmarshalSendgridEvent(data []byte) error {
+	if err := json.Unmarshal(data, s); err != nil {
+		return err
+	}
+	s.Provider = "Sendgrid"
+	return nil
+}
+
+// SendgridClickEvent
 type SendgridClickEvent struct {
 	SendgridOpenEvent
 	URL string `json:"url"`
 }
 
+func (s *SendgridClickEvent) UnmarshalSendgridEvent(data []byte) error {
+	if err := json.Unmarshal(data, s); err != nil {
+		return err
+	}
+	s.Provider = "Sendgrid"
+	return nil
+}
+
+// SendgridBounceEvent
 type SendgridBounceEvent struct {
 	SendgridEvent
 	Reason string `json:"reason"`
 	Status string `json:"status"`
 }
 
+func (s *SendgridBounceEvent) UnmarshalSendgridEvent(data []byte) error {
+	if err := json.Unmarshal(data, s); err != nil {
+		return err
+	}
+	s.Provider = "Sendgrid"
+	return nil
+}
+
+// SendgridDroppedEvent
 type SendgridDroppedEvent struct {
 	SendgridEvent
 	Reason string `json:"reason"`
 	Status string `json:"status"`
 }
 
+func (s *SendgridDroppedEvent) UnmarshalSendgridEvent(data []byte) error {
+	if err := json.Unmarshal(data, s); err != nil {
+		return err
+	}
+	s.Provider = "Sendgrid"
+	return nil
+}
+
+// SendgridGroupUnsubscribeEvent
 type SendgridGroupUnsubscribeEvent struct {
 	SendgridOpenEvent
 	URL        string `json:"url"`
 	ASMGroupID int    `json:"asm_group_id"`
 }
 
+func (s *SendgridGroupUnsubscribeEvent) UnmarshalSendgridEvent(data []byte) error {
+	if err := json.Unmarshal(data, s); err != nil {
+		return err
+	}
+	s.Provider = "Sendgrid"
+	return nil
+}
+
+// SendgridGroupResubscribeEvent
 type SendgridGroupResubscribeEvent struct {
 	SendgridOpenEvent
 	URL        string `json:"url"`
 	ASMGroupID int    `json:"asm_group_id"`
 }
 
-// Events with no additional fields can use the base Event struct
+func (s *SendgridGroupResubscribeEvent) UnmarshalSendgridEvent(data []byte) error {
+	if err := json.Unmarshal(data, s); err != nil {
+		return err
+	}
+	s.Provider = "Sendgrid"
+	return nil
+}
+
+// SendgridProcessedEvent
 type SendgridProcessedEvent SendgridEvent
+
+func (s *SendgridProcessedEvent) UnmarshalSendgridEvent(data []byte) error {
+	if err := json.Unmarshal(data, s); err != nil {
+		return err
+	}
+	s.Provider = "Sendgrid"
+	return nil
+}
+
+// SendgridSpamReportEvent
 type SendgridSpamReportEvent SendgridEvent
+
+func (s *SendgridSpamReportEvent) UnmarshalSendgridEvent(data []byte) error {
+	if err := json.Unmarshal(data, s); err != nil {
+		return err
+	}
+	s.Provider = "Sendgrid"
+	return nil
+}
+
+// SendgridUnsubscribeEvent
 type SendgridUnsubscribeEvent SendgridEvent
+
+func (s *SendgridUnsubscribeEvent) UnmarshalSendgridEvent(data []byte) error {
+	if err := json.Unmarshal(data, s); err != nil {
+		return err
+	}
+	s.Provider = "Sendgrid"
+	return nil
+}
