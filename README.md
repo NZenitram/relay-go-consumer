@@ -83,6 +83,84 @@ This JSON structure allows for detailed customization of the email sending proce
 }
 ```
 
+```json
+{
+	"headers": {
+		"Accept": [
+			"*/*"
+		],
+		"Accept-Encoding": [
+			"gzip"
+		],
+		"Content-Length": [
+			"1417"
+		],
+		"Content-Type": [
+			"application/json"
+		],
+		"User-Agent": [
+			"curl/8.7.1"
+		],
+		"X-Forwarded-For": [
+			"67.1.195.103"
+		],
+		"X-Forwarded-Host": [
+			"horribly-striking-joey.ngrok-free.app"
+		],
+		"X-Forwarded-Proto": [
+			"https"
+		]
+	},
+	"body": {
+		"from": "Twitter Zen <test@esprelay.com>",
+		"to": [
+			"\"Nick Martinez, Jr.\" <twitter1@nzenitram.com>",
+			"Mick Nartinez <nzenitram@nzenitram.com>",
+			"Admin ESP <admin@esprelay.com>",
+			"Admin Webhook <admin@webhookrelays.com>",
+			"Test ESP <test@esprelay.com>",
+			"YF CLickALeague <yourfriends@clickaleague.com>"
+		],
+		"cc": [
+			"nick1@nzenitram.com"
+		],
+		"bcc": [
+			"support@nzenitram.com"
+		],
+		"subject": "Updating the subject to reflect the test",
+		"textbody": "",
+		"htmlbody": "<p>This is the <strong>HTML</strong> body of the email.</p>",
+		"attachments": [
+			{
+				"name": "example.txt",
+				"contenttype": "text/plain",
+				"content": "SGVsbG8gd29ybGQh"
+			}
+		],
+		"headers": {
+			"X-Custom-Header-1": "Custom Value 1",
+			"X-Custom-Header-2": "Custom Value 2"
+		},
+		"data": {
+			"TrackOpens": true,
+			"TrackLinks": "HtmlOnly",
+			"MessageStream": "outbound"
+		},
+		"credentials": {
+    "SocketLabsServerID": "12345",
+    "SocketLabsAPIkey": "12345abcdefg",
+    "SocketLabsWeight": "25",
+    "PostmarkServerToken": "555555555-abcd-5555-9279-2bdaf804f19f",
+    "PostmarkAPIURL": "https://api.postmarkapp.com/email",
+    "PostmarkWeight": "25",
+			"SendgridAPIKey": "SG.asdfasfasdfasfd---asdf.x_x7thLJSL0muwesXAPVgZcgA0",
+			"SendgridWeight": "25",
+			"SparkpostAPIKey": "asdfasdf3224512345sadfasdf",
+			"SparkpostWeight": "25"
+		}
+	}
+}
+```
 ### Curl with Text Body, Friendly From, Headers, and Attachment
 
 ```bash

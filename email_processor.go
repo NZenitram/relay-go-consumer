@@ -11,13 +11,19 @@ import (
 	"github.com/IBM/sarama"
 )
 
+type KafkaMessage struct {
+	Headers map[string][]string `json:"headers"`
+	Body    EmailMessage        `json:"body"`
+}
+
 func ProcessEmailMessages(msg *sarama.ConsumerMessage) {
-	var emailMessage EmailMessage
-	err := json.Unmarshal(msg.Value, &emailMessage)
+	var kafkaMessage KafkaMessage
+	err := json.Unmarshal(msg.Value, &kafkaMessage)
 	if err != nil {
 		log.Fatalf("Failed to parse JSON: %v", err)
 	}
 
+	emailMessage := kafkaMessage.Body
 	// Extract credentials from the email message
 	credentials := emailMessage.Credentials
 	socketLabsWeight, postmarkWeight, sendGridWeight, sparkPostWeight := calculateWeights(credentials)
