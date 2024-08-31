@@ -51,7 +51,7 @@ func main() {
 	consumeTopic(consumer, sendgridWebhookTopic, config, ProcessSendgridEvents)
 
 	// Consume messages from the 'webhook-events-postmark' topic
-	consumeTopic(consumer, postmarkWebhookTopic, config, ProcessWebhookMessages)
+	consumeTopic(consumer, postmarkWebhookTopic, config, ProcessPostmarkEvents)
 
 	// Consume messages from the 'webhook-events-socketlabs' topic
 	consumeTopic(consumer, socketlabsWebhookTopic, config, ProcessWebhookMessages)
@@ -72,7 +72,7 @@ func consumeTopic(consumer sarama.Consumer, topic string, config *sarama.Config,
 	rand.Seed(uint64(time.Now().UnixNano())) // Seed the random number generator
 	for _, partition := range partitionList {
 		pc, err := consumer.ConsumePartition(topic, partition, config.Consumer.Offsets.Initial)
-		// pc, err := consumer.ConsumePartition(topic, partition, 1)
+		// pc, err := consumer.ConsumePartition(topic, partition, 10)
 		if err != nil {
 			log.Fatalf("Failed to start consumer for partition %d on topic %s: %v", partition, topic, err)
 		}
