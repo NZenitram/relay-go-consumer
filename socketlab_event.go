@@ -4,14 +4,36 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
+	"relay-go-consumer/database"
+
 	"github.com/IBM/sarama"
+	"github.com/lib/pq"
 )
+
+// SocketlabsWebhookPayload represents the entire webhook payload
+type SocketlabsWebhookPayload struct {
+	Headers SocketlabsWebhookHeaders `json:"headers"`
+	Body    json.RawMessage          `json:"body"`
+}
+
+// WebhookHeaders represents the headers in the webhook payload
+type SocketlabsWebhookHeaders struct {
+	AcceptEncoding       []string `json:"Accept-Encoding"`
+	ContentLength        []string `json:"Content-Length"`
+	ContentType          []string `json:"Content-Type"`
+	UserAgent            []string `json:"User-Agent"`
+	XForwardedFor        []string `json:"X-Forwarded-For"`
+	XForwardedHost       []string `json:"X-Forwarded-Host"`
+	XForwardedProto      []string `json:"X-Forwarded-Proto"`
+	XSocketlabsSignature []string `json:"X-Socketlabs-Signature"`
+}
 
 // SocketLabsEventUnmarshaler interface
 type SocketLabsEventUnmarshaler interface {
-	UnmarshalSocketLabsEvent(data []byte) error
+	UnmarshalSocketLabsEvent(data []byte, headers SocketlabsWebhookHeaders) error
 }
 
 // Tracking type map
@@ -35,6 +57,56 @@ type SocketLabsBaseEvent struct {
 	SecretKey    string    `json:"SecretKey"`
 }
 
+func (e *SocketLabsBaseEvent) UnmarshalSocketLabsEvent(data []byte, headers SocketlabsWebhookHeaders) error {
+	if err := json.Unmarshal(data, e); err != nil {
+		return err
+	}
+	return e.saveToDatabase(data, headers)
+}
+
+func (e *SocketLabsBaseEvent) saveToDatabase(eventData []byte, headers SocketlabsWebhookHeaders) error {
+	database.InitDB()
+	db := database.GetDB()
+
+	stmt, err := db.Prepare(`
+		INSERT INTO socketlabs_events (
+			event_type, date_time, mailing_id, message_id, address, server_id, subaccount_id, 
+			ip_pool_id, secret_key, event_data,
+			accept_encoding, content_length, content_type, user_agent, x_forwarded_for,
+			x_forwarded_host, x_forwarded_proto, x_socketlabs_signature
+		) VALUES (
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
+		)
+	`)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	_, err = stmt.Exec(
+		strings.ToLower(e.Type),
+		e.DateTime,
+		e.MailingId,
+		e.MessageId,
+		e.Address,
+		e.ServerId,
+		e.SubaccountId,
+		e.IpPoolId,
+		e.SecretKey,
+		string(eventData),
+		pq.Array(headers.AcceptEncoding),
+		pq.Array(headers.ContentLength),
+		pq.Array(headers.ContentType),
+		pq.Array(headers.UserAgent),
+		pq.Array(headers.XForwardedFor),
+		pq.Array(headers.XForwardedHost),
+		pq.Array(headers.XForwardedProto),
+		pq.Array(headers.XSocketlabsSignature),
+	)
+
+	return err
+}
+
 // SocketLabsTrackingEvent struct for Click events
 type SocketLabsTrackingEvent struct {
 	SocketLabsBaseEvent
@@ -45,6 +117,20 @@ type SocketLabsTrackingEvent struct {
 	Data         SocketLabsData `json:"Data"`
 }
 
+func (e *SocketLabsTrackingEvent) UnmarshalSocketLabsEvent(data []byte, headers SocketlabsWebhookHeaders) error {
+	if err := json.Unmarshal(data, e); err != nil {
+		return err
+	}
+
+	// Handle TrackingType mapping for SocketLabsTrackingEvent
+	trackingTypeString := e.GetTrackingTypeString()
+
+	// Update the Type field with the specific tracking type
+	e.Type = trackingTypeString
+
+	return e.SocketLabsBaseEvent.saveToDatabase(data, headers)
+}
+
 // SocketLabsComplaintEvent struct for Complaint events
 type SocketLabsComplaintEvent struct {
 	SocketLabsBaseEvent
@@ -52,6 +138,13 @@ type SocketLabsComplaintEvent struct {
 	From      string `json:"From"`
 	To        string `json:"To"`
 	Length    int    `json:"Length"`
+}
+
+func (e *SocketLabsComplaintEvent) UnmarshalSocketLabsEvent(data []byte, headers SocketlabsWebhookHeaders) error {
+	if err := json.Unmarshal(data, e); err != nil {
+		return err
+	}
+	return e.SocketLabsBaseEvent.saveToDatabase(data, headers)
 }
 
 // SocketLabsFailedEvent struct for Failed events
@@ -67,6 +160,13 @@ type SocketLabsFailedEvent struct {
 	Data           SocketLabsData `json:"Data"`
 }
 
+func (e *SocketLabsFailedEvent) UnmarshalSocketLabsEvent(data []byte, headers SocketlabsWebhookHeaders) error {
+	if err := json.Unmarshal(data, e); err != nil {
+		return err
+	}
+	return e.SocketLabsBaseEvent.saveToDatabase(data, headers)
+}
+
 // SocketLabsDeliveredEvent struct for Delivered events
 type SocketLabsDeliveredEvent struct {
 	SocketLabsBaseEvent
@@ -74,6 +174,13 @@ type SocketLabsDeliveredEvent struct {
 	LocalIp   string         `json:"LocalIp"`
 	RemoteMta string         `json:"RemoteMta"`
 	Data      SocketLabsData `json:"Data"`
+}
+
+func (e *SocketLabsDeliveredEvent) UnmarshalSocketLabsEvent(data []byte, headers SocketlabsWebhookHeaders) error {
+	if err := json.Unmarshal(data, e); err != nil {
+		return err
+	}
+	return e.SocketLabsBaseEvent.saveToDatabase(data, headers)
 }
 
 // SocketLabsQueuedEvent struct for Queued events
@@ -87,6 +194,13 @@ type SocketLabsQueuedEvent struct {
 	Data        SocketLabsData `json:"Data"`
 }
 
+func (e *SocketLabsQueuedEvent) UnmarshalSocketLabsEvent(data []byte, headers SocketlabsWebhookHeaders) error {
+	if err := json.Unmarshal(data, e); err != nil {
+		return err
+	}
+	return e.SocketLabsBaseEvent.saveToDatabase(data, headers)
+}
+
 // SocketLabsDeferredEvent struct for Deferred events
 type SocketLabsDeferredEvent struct {
 	SocketLabsBaseEvent
@@ -94,6 +208,13 @@ type SocketLabsDeferredEvent struct {
 	DeferralCode int            `json:"DeferralCode"`
 	Reason       string         `json:"Reason"`
 	Data         SocketLabsData `json:"Data"`
+}
+
+func (e *SocketLabsDeferredEvent) UnmarshalSocketLabsEvent(data []byte, headers SocketlabsWebhookHeaders) error {
+	if err := json.Unmarshal(data, e); err != nil {
+		return err
+	}
+	return e.SocketLabsBaseEvent.saveToDatabase(data, headers)
 }
 
 // SocketLabsData struct for the Data field
@@ -108,43 +229,15 @@ type SocketLabsMeta struct {
 	Value string `json:"Value"`
 }
 
-// UnmarshalSocketLabsEvent methods for each event type
-func (e *SocketLabsTrackingEvent) UnmarshalSocketLabsEvent(data []byte) error {
-	return json.Unmarshal(data, e)
-}
-
-func (e *SocketLabsComplaintEvent) UnmarshalSocketLabsEvent(data []byte) error {
-	return json.Unmarshal(data, e)
-}
-
-func (e *SocketLabsFailedEvent) UnmarshalSocketLabsEvent(data []byte) error {
-	return json.Unmarshal(data, e)
-}
-
-func (e *SocketLabsDeliveredEvent) UnmarshalSocketLabsEvent(data []byte) error {
-	return json.Unmarshal(data, e)
-}
-
-func (e *SocketLabsQueuedEvent) UnmarshalSocketLabsEvent(data []byte) error {
-	return json.Unmarshal(data, e)
-}
-
-func (e *SocketLabsDeferredEvent) UnmarshalSocketLabsEvent(data []byte) error {
-	return json.Unmarshal(data, e)
-}
-
 func (e *SocketLabsTrackingEvent) GetTrackingTypeString() string {
 	if typeName, ok := trackingTypeMap[e.TrackingType]; ok {
-		e.Type = typeName
+		return typeName
 	}
 	return "Unknown"
 }
 
 func ProcessSocketLabsEvents(msg *sarama.ConsumerMessage) {
-	var payload struct {
-		Headers json.RawMessage `json:"headers"`
-		Body    json.RawMessage `json:"body"`
-	}
+	var payload SocketlabsWebhookPayload
 	err := json.Unmarshal(msg.Value, &payload)
 	if err != nil {
 		log.Printf("Failed to unmarshal message: %v", err)
@@ -179,20 +272,12 @@ func ProcessSocketLabsEvents(msg *sarama.ConsumerMessage) {
 		return
 	}
 
-	err = event.UnmarshalSocketLabsEvent(payload.Body)
+	err = event.UnmarshalSocketLabsEvent(payload.Body, payload.Headers)
 	if err != nil {
 		log.Printf("Failed to unmarshal event: %v", err)
 		log.Printf("Raw payload: %s", string(payload.Body))
 		return
 	}
 
-	// Handle TrackingType mapping for SocketLabsTrackingEvent
-	if trackingEvent, ok := event.(*SocketLabsTrackingEvent); ok {
-		trackingTypeString := trackingEvent.GetTrackingTypeString()
-		fmt.Printf("Event Type: %s, Tracking Type: %s (Code: %d)\n",
-			trackingEvent.Type, trackingTypeString, trackingEvent.TrackingType)
-	}
-
 	fmt.Printf("Event: %+v\n", event)
-	saveToDatabase(event)
 }

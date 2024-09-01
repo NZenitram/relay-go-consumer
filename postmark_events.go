@@ -79,7 +79,6 @@ func ProcessPostmarkEvents(msg *sarama.ConsumerMessage) {
 
 type PostmarkEvent struct {
 	RecordType  string                 `json:"RecordType"`
-	ID          int64                  `json:"ID"`
 	ServerID    int                    `json:"ServerID"`
 	MessageID   string                 `json:"MessageID"`
 	Recipient   string                 `json:"Recipient"`
@@ -109,13 +108,13 @@ func (p *PostmarkEvent) saveToDatabase(eventData []byte, headers PostmarkWebhook
 
 	stmt, err := db.Prepare(`
 		INSERT INTO postmarkeventwithheaders (
-			record_type, id, server_id, message_id, recipient, tag, delivered_at, details, metadata, provider,
+			record_type, server_id, message_id, recipient, tag, delivered_at, details, metadata, provider,
 			event, event_data,
 			accept_encoding, content_length, content_type, expect, user_agent, x_forwarded_for,
 			x_forwarded_host, x_forwarded_proto, x_pm_retries_remaining, x_pm_webhook_event_id,
 			x_pm_webhook_trace_id
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22
 		)
 	`)
 	if err != nil {
@@ -130,7 +129,6 @@ func (p *PostmarkEvent) saveToDatabase(eventData []byte, headers PostmarkWebhook
 
 	_, err = stmt.Exec(
 		strings.ToLower(p.RecordType),
-		p.ID,
 		p.ServerID,
 		p.MessageID,
 		p.Recipient,
