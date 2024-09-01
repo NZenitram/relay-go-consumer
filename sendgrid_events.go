@@ -4,7 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"relay-go-consumer/database"
+
 	"github.com/IBM/sarama"
+	"github.com/lib/pq"
 )
 
 func ProcessSendgridEvents(msg *sarama.ConsumerMessage) {
@@ -15,6 +18,13 @@ func ProcessSendgridEvents(msg *sarama.ConsumerMessage) {
 	err := json.Unmarshal(msg.Value, &payload)
 	if err != nil {
 		fmt.Printf("Failed to unmarshal message: %v\n", err)
+		return
+	}
+
+	var headers WebhookHeaders
+	err = json.Unmarshal(payload.Headers, &headers)
+	if err != nil {
+		fmt.Printf("Failed to unmarshal headers: %v\n", err)
 		return
 	}
 
@@ -56,14 +66,13 @@ func ProcessSendgridEvents(msg *sarama.ConsumerMessage) {
 			continue
 		}
 
-		err = event.UnmarshalSendgridEvent(eventData)
+		err = event.UnmarshalSendgridEvent(eventData, headers)
 		if err != nil {
 			fmt.Printf("Failed to unmarshal event: %v\n", err)
 			continue
 		}
 
 		fmt.Printf("Event: %+v\n", event)
-		saveToDatabase(event)
 	}
 }
 
@@ -88,7 +97,7 @@ type WebhookHeaders struct {
 
 // SendgridEventUnmarshaler interface
 type SendgridEventUnmarshaler interface {
-	UnmarshalSendgridEvent(data []byte) error
+	UnmarshalSendgridEvent(data []byte, headers WebhookHeaders) error
 }
 
 // Base struct for common fields
@@ -103,11 +112,54 @@ type SendgridEvent struct {
 	SGMessageID string   `json:"sg_message_id"`
 }
 
-func (e *SendgridEvent) UnmarshalSendgridEvent(data []byte) error {
+func (e *SendgridEvent) UnmarshalSendgridEvent(data []byte, headers WebhookHeaders) error {
 	if err := json.Unmarshal(data, e); err != nil {
 		return err
 	}
 	e.Provider = "Sendgrid"
+
+	database.InitDB()
+	db := database.GetDB()
+
+	// Prepare SQL statement
+	stmt, err := db.Prepare(`
+        INSERT INTO SendgridEventWithHeaders (
+            provider, email, timestamp, smtp_id, event, category, sg_event_id, sg_message_id,
+            accept_encoding, content_length, content_type, user_agent, x_forwarded_for,
+            x_forwarded_host, x_forwarded_proto, x_twilio_email_event_webhook_signature,
+            x_twilio_email_event_webhook_timestamp
+        ) VALUES (
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17
+        )
+    `)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	// Execute SQL statement
+	_, err = stmt.Exec(
+		e.Provider,
+		e.Email,
+		e.Timestamp,
+		e.SMTPID,
+		e.Event,
+		pq.Array(e.Category),
+		e.SGEventID,
+		e.SGMessageID,
+		pq.Array(headers.AcceptEncoding),
+		pq.Array(headers.ContentLength),
+		pq.Array(headers.ContentType),
+		pq.Array(headers.UserAgent),
+		pq.Array(headers.XForwardedFor),
+		pq.Array(headers.XForwardedHost),
+		pq.Array(headers.XForwardedProto),
+		pq.Array(headers.XTwilioEmailEventWebhookSignature),
+		pq.Array(headers.XTwilioEmailEventWebhookTimestamp),
+	)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -118,28 +170,25 @@ type SendgridDeferredEvent struct {
 	Attempt  string `json:"attempt"`
 }
 
-func (s *SendgridDeferredEvent) UnmarshalSendgridEvent(data []byte) error {
+func (s *SendgridDeferredEvent) UnmarshalSendgridEvent(data []byte, headers WebhookHeaders) error {
 	if err := json.Unmarshal(data, s); err != nil {
 		return err
 	}
 	s.Provider = "Sendgrid"
-	return nil
+	return s.SendgridEvent.UnmarshalSendgridEvent(data, headers)
 }
-
-// Implement UnmarshalSendgridEvent for other event types similarly
-// For example:
 
 type SendgridDeliveredEvent struct {
 	SendgridEvent
 	Response string `json:"response"`
 }
 
-func (s *SendgridDeliveredEvent) UnmarshalSendgridEvent(data []byte) error {
+func (s *SendgridDeliveredEvent) UnmarshalSendgridEvent(data []byte, headers WebhookHeaders) error {
 	if err := json.Unmarshal(data, s); err != nil {
 		return err
 	}
 	s.Provider = "Sendgrid"
-	return nil
+	return s.SendgridEvent.UnmarshalSendgridEvent(data, headers)
 }
 
 // SendgridOpenEvent
@@ -149,12 +198,12 @@ type SendgridOpenEvent struct {
 	IP        string `json:"ip"`
 }
 
-func (s *SendgridOpenEvent) UnmarshalSendgridEvent(data []byte) error {
+func (s *SendgridOpenEvent) UnmarshalSendgridEvent(data []byte, headers WebhookHeaders) error {
 	if err := json.Unmarshal(data, s); err != nil {
 		return err
 	}
 	s.Provider = "Sendgrid"
-	return nil
+	return s.SendgridEvent.UnmarshalSendgridEvent(data, headers)
 }
 
 // SendgridClickEvent
@@ -163,12 +212,12 @@ type SendgridClickEvent struct {
 	URL string `json:"url"`
 }
 
-func (s *SendgridClickEvent) UnmarshalSendgridEvent(data []byte) error {
+func (s *SendgridClickEvent) UnmarshalSendgridEvent(data []byte, headers WebhookHeaders) error {
 	if err := json.Unmarshal(data, s); err != nil {
 		return err
 	}
 	s.Provider = "Sendgrid"
-	return nil
+	return s.SendgridEvent.UnmarshalSendgridEvent(data, headers)
 }
 
 // SendgridBounceEvent
@@ -178,12 +227,12 @@ type SendgridBounceEvent struct {
 	Status string `json:"status"`
 }
 
-func (s *SendgridBounceEvent) UnmarshalSendgridEvent(data []byte) error {
+func (s *SendgridBounceEvent) UnmarshalSendgridEvent(data []byte, headers WebhookHeaders) error {
 	if err := json.Unmarshal(data, s); err != nil {
 		return err
 	}
 	s.Provider = "Sendgrid"
-	return nil
+	return s.SendgridEvent.UnmarshalSendgridEvent(data, headers)
 }
 
 // SendgridDroppedEvent
@@ -193,12 +242,12 @@ type SendgridDroppedEvent struct {
 	Status string `json:"status"`
 }
 
-func (s *SendgridDroppedEvent) UnmarshalSendgridEvent(data []byte) error {
+func (s *SendgridDroppedEvent) UnmarshalSendgridEvent(data []byte, headers WebhookHeaders) error {
 	if err := json.Unmarshal(data, s); err != nil {
 		return err
 	}
 	s.Provider = "Sendgrid"
-	return nil
+	return s.SendgridEvent.UnmarshalSendgridEvent(data, headers)
 }
 
 // SendgridGroupUnsubscribeEvent
@@ -208,12 +257,12 @@ type SendgridGroupUnsubscribeEvent struct {
 	ASMGroupID int    `json:"asm_group_id"`
 }
 
-func (s *SendgridGroupUnsubscribeEvent) UnmarshalSendgridEvent(data []byte) error {
+func (s *SendgridGroupUnsubscribeEvent) UnmarshalSendgridEvent(data []byte, headers WebhookHeaders) error {
 	if err := json.Unmarshal(data, s); err != nil {
 		return err
 	}
 	s.Provider = "Sendgrid"
-	return nil
+	return s.SendgridEvent.UnmarshalSendgridEvent(data, headers)
 }
 
 // SendgridGroupResubscribeEvent
@@ -223,43 +272,43 @@ type SendgridGroupResubscribeEvent struct {
 	ASMGroupID int    `json:"asm_group_id"`
 }
 
-func (s *SendgridGroupResubscribeEvent) UnmarshalSendgridEvent(data []byte) error {
+func (s *SendgridGroupResubscribeEvent) UnmarshalSendgridEvent(data []byte, headers WebhookHeaders) error {
 	if err := json.Unmarshal(data, s); err != nil {
 		return err
 	}
 	s.Provider = "Sendgrid"
-	return nil
+	return s.SendgridEvent.UnmarshalSendgridEvent(data, headers)
 }
 
 // SendgridProcessedEvent
 type SendgridProcessedEvent SendgridEvent
 
-func (s *SendgridProcessedEvent) UnmarshalSendgridEvent(data []byte) error {
+func (s *SendgridProcessedEvent) UnmarshalSendgridEvent(data []byte, headers WebhookHeaders) error {
 	if err := json.Unmarshal(data, s); err != nil {
 		return err
 	}
 	s.Provider = "Sendgrid"
-	return nil
+	return (*SendgridEvent)(s).UnmarshalSendgridEvent(data, headers)
 }
 
 // SendgridSpamReportEvent
 type SendgridSpamReportEvent SendgridEvent
 
-func (s *SendgridSpamReportEvent) UnmarshalSendgridEvent(data []byte) error {
+func (s *SendgridSpamReportEvent) UnmarshalSendgridEvent(data []byte, headers WebhookHeaders) error {
 	if err := json.Unmarshal(data, s); err != nil {
 		return err
 	}
 	s.Provider = "Sendgrid"
-	return nil
+	return (*SendgridEvent)(s).UnmarshalSendgridEvent(data, headers)
 }
 
 // SendgridUnsubscribeEvent
 type SendgridUnsubscribeEvent SendgridEvent
 
-func (s *SendgridUnsubscribeEvent) UnmarshalSendgridEvent(data []byte) error {
+func (s *SendgridUnsubscribeEvent) UnmarshalSendgridEvent(data []byte, headers WebhookHeaders) error {
 	if err := json.Unmarshal(data, s); err != nil {
 		return err
 	}
 	s.Provider = "Sendgrid"
-	return nil
+	return (*SendgridEvent)(s).UnmarshalSendgridEvent(data, headers)
 }
