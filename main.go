@@ -54,10 +54,10 @@ func main() {
 	consumeTopic(consumer, postmarkWebhookTopic, config, ProcessPostmarkEvents)
 
 	// Consume messages from the 'webhook-events-socketlabs' topic
-	consumeTopic(consumer, socketlabsWebhookTopic, config, ProcessWebhookMessages)
+	consumeTopic(consumer, socketlabsWebhookTopic, config, ProcessSocketLabsEvents)
 
 	// Consume messages from the 'webhook-events-sparkpost' topic
-	consumeTopic(consumer, sparkpostWebhookTopic, config, ProcessWebhookMessages)
+	consumeTopic(consumer, sparkpostWebhookTopic, config, ProcessSparkPostEvents)
 
 	// Wait forever
 	<-context.Background().Done()
