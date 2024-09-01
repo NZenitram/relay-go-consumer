@@ -55,9 +55,10 @@ func SendEmailWithSendGrid(emailMessage EmailMessage) {
 		}
 
 		// Send the email
-		_, err := client.Send(message)
+		res, err := client.Send(message)
 		if err != nil {
 			log.Printf("Failed to send email to %s: %v", to.Email, err)
 		}
+		log.Printf("Sendgrid client.Send Response: %v", res)
 	}
 }

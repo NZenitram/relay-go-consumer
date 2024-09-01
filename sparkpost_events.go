@@ -120,8 +120,6 @@ type SparkPostEventUnmarshaler interface {
 }
 
 func (c *CommonEventFields) UnmarshalSparkPostEvent(data []byte, headers SparkPostWebhookHeaders) error {
-	fmt.Printf("Raw data: %s\n", string(data))
-
 	var payload []struct {
 		Msys struct {
 			MessageEvent *CommonEventFields `json:"message_event,omitempty"`
