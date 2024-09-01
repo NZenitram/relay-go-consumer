@@ -3,8 +3,10 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"relay-go-consumer/database"
 
 	"github.com/IBM/sarama"
+	"github.com/lib/pq"
 )
 
 type GeoIP struct {
@@ -100,6 +102,106 @@ type TrackEvent struct {
 	UserAgentParsed UserAgentParsed `json:"user_agent_parsed"`
 }
 
+type SparkPostWebhookHeaders struct {
+	AcceptEncoding      []string `json:"Accept-Encoding"`
+	ContentLength       []string `json:"Content-Length"`
+	ContentType         []string `json:"Content-Type"`
+	UserAgent           []string `json:"User-Agent"`
+	XForwardedFor       []string `json:"X-Forwarded-For"`
+	XForwardedHost      []string `json:"X-Forwarded-Host"`
+	XForwardedProto     []string `json:"X-Forwarded-Proto"`
+	XSparkpostSignature []string `json:"X-Sparkpost-Signature"`
+}
+
+// ... (keep all your existing struct definitions for GeoIP, UserAgentParsed, etc.)
+
+type SparkPostEventUnmarshaler interface {
+	UnmarshalSparkPostEvent(data []byte, headers SparkPostWebhookHeaders) error
+}
+
+func (c *CommonEventFields) UnmarshalSparkPostEvent(data []byte, headers SparkPostWebhookHeaders) error {
+	fmt.Printf("Raw data: %s\n", string(data))
+
+	var payload []struct {
+		Msys struct {
+			MessageEvent *CommonEventFields `json:"message_event,omitempty"`
+			TrackEvent   *CommonEventFields `json:"track_event,omitempty"`
+		} `json:"msys"`
+	}
+
+	if err := json.Unmarshal(data, &payload); err != nil {
+		return err
+	}
+
+	if len(payload) == 0 {
+		return fmt.Errorf("empty payload")
+	}
+
+	var event *CommonEventFields
+	if payload[0].Msys.MessageEvent != nil {
+		event = payload[0].Msys.MessageEvent
+	} else if payload[0].Msys.TrackEvent != nil {
+		event = payload[0].Msys.TrackEvent
+	} else {
+		return fmt.Errorf("no recognized event type in payload")
+	}
+
+	*c = *event // Copy the unmarshaled data to the receiver
+
+	fmt.Printf("Unmarshalled data: %+v\n", c)
+
+	return c.saveToDatabase(data, headers)
+}
+
+func (c *CommonEventFields) saveToDatabase(eventData []byte, headers SparkPostWebhookHeaders) error {
+	database.InitDB()
+	db := database.GetDB()
+
+	stmt, err := db.Prepare(`
+		INSERT INTO sparkpost_events (
+			event_type, message_id, transmission_id, event_data,
+			accept_encoding, content_length, content_type, user_agent, x_forwarded_for,
+			x_forwarded_host, x_forwarded_proto, x_sparkpost_signature,
+			timestamp, rcpt_to, ip_address, event_id
+		) VALUES (
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16
+		)
+	`)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	_, err = stmt.Exec(
+		c.Type,
+		c.MessageID,
+		c.TransmissionID,
+		string(eventData),
+		pq.Array(headers.AcceptEncoding),
+		pq.Array(headers.ContentLength),
+		pq.Array(headers.ContentType),
+		pq.Array(headers.UserAgent),
+		pq.Array(headers.XForwardedFor),
+		pq.Array(headers.XForwardedHost),
+		pq.Array(headers.XForwardedProto),
+		pq.Array(headers.XSparkpostSignature),
+		c.Timestamp,
+		c.RcptTo,
+		c.IPAddress,
+		c.EventID,
+	)
+
+	return err
+}
+
+func (e *MessageEvent) UnmarshalSparkPostEvent(data []byte, headers SparkPostWebhookHeaders) error {
+	return e.CommonEventFields.UnmarshalSparkPostEvent(data, headers)
+}
+
+func (e *TrackEvent) UnmarshalSparkPostEvent(data []byte, headers SparkPostWebhookHeaders) error {
+	return e.CommonEventFields.UnmarshalSparkPostEvent(data, headers)
+}
+
 type SparkPostPayload []struct {
 	Msys struct {
 		MessageEvent *MessageEvent `json:"message_event,omitempty"`
@@ -109,8 +211,8 @@ type SparkPostPayload []struct {
 
 func ProcessSparkPostEvents(msg *sarama.ConsumerMessage) {
 	var payload struct {
-		Headers json.RawMessage `json:"headers"`
-		Body    json.RawMessage `json:"body"`
+		Headers SparkPostWebhookHeaders `json:"headers"`
+		Body    json.RawMessage         `json:"body"`
 	}
 	err := json.Unmarshal(msg.Value, &payload)
 	if err != nil {
@@ -126,14 +228,22 @@ func ProcessSparkPostEvents(msg *sarama.ConsumerMessage) {
 	}
 
 	for _, event := range sparkPostPayload {
+		var sparkPostEvent SparkPostEventUnmarshaler
+
 		if event.Msys.MessageEvent != nil {
-			fmt.Printf("Message Event Type: %s\n", event.Msys.MessageEvent.Type)
-			fmt.Printf("Message Event: %+v\n", event.Msys.MessageEvent)
-			saveToDatabase(event.Msys.MessageEvent)
+			sparkPostEvent = event.Msys.MessageEvent
+			// fmt.Printf("Message Event Type: %s\n", event.Msys.MessageEvent.Type)
 		} else if event.Msys.TrackEvent != nil {
-			fmt.Printf("Track Event Type: %s\n", event.Msys.TrackEvent.Type)
-			fmt.Printf("Track Event: %+v\n", event.Msys.TrackEvent)
-			saveToDatabase(event.Msys.TrackEvent)
+			sparkPostEvent = event.Msys.TrackEvent
+			// fmt.Printf("Track Event Type: %s\n", event.Msys.TrackEvent.Type)
+		} else {
+			fmt.Println("Unknown event type")
+			continue
+		}
+
+		err = sparkPostEvent.UnmarshalSparkPostEvent(payload.Body, payload.Headers)
+		if err != nil {
+			fmt.Printf("Error unmarshaling and saving event to database: %v\n", err)
 		}
 	}
 }
