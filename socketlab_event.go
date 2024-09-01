@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"strings"
 	"time"
@@ -248,7 +247,7 @@ func ProcessSocketLabsEvents(msg *sarama.ConsumerMessage) {
 	err = json.Unmarshal(payload.Body, &baseEvent)
 	if err != nil {
 		log.Printf("Failed to unmarshal base event: %v", err)
-		log.Printf("Raw payload: %s", string(payload.Body))
+		// log.Printf("Raw payload: %s", string(payload.Body))
 		return
 	}
 
@@ -275,9 +274,9 @@ func ProcessSocketLabsEvents(msg *sarama.ConsumerMessage) {
 	err = event.UnmarshalSocketLabsEvent(payload.Body, payload.Headers)
 	if err != nil {
 		log.Printf("Failed to unmarshal event: %v", err)
-		log.Printf("Raw payload: %s", string(payload.Body))
+		// log.Printf("Raw payload: %s", string(payload.Body))
 		return
 	}
 
-	fmt.Printf("Event: %+v\n", event)
+	// fmt.Printf("Event: %+v\n", event)
 }

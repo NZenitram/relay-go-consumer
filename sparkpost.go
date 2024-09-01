@@ -67,8 +67,8 @@ func SendEmailWithSparkPost(emailMessage EmailMessage) {
 	// Send the email
 	id, _, err := client.Send(tx)
 	if err != nil {
-		log.Printf("Failed to send email with SparkPost: %v", err)
+		log.Printf("Failed to send email with SparkPost: %v Transmission ID: %s", err, id)
 	}
 
-	log.Printf("Email sent with SparkPost. Transmission ID: %s", id)
+	// log.Printf("Email sent with SparkPost. Transmission ID: %s", id)
 }

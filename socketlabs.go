@@ -62,11 +62,9 @@ func SendEmailWithSocketLabs(emailMessage EmailMessage) {
 		}
 
 		// Send the email
-		response, err := client.SendBasic(&basic)
+		_, err := client.SendBasic(&basic)
 		if err != nil {
 			log.Printf("Failed to send email to %s: %v", to.Email, err)
-		} else {
-			log.Printf("Email sent to %s. Response: %v", to.Email, response)
 		}
 	}
 }

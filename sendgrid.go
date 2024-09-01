@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/base64"
-	"fmt"
 	"log"
 
 	"github.com/sendgrid/sendgrid-go"
@@ -56,13 +55,9 @@ func SendEmailWithSendGrid(emailMessage EmailMessage) {
 		}
 
 		// Send the email
-		response, err := client.Send(message)
+		_, err := client.Send(message)
 		if err != nil {
 			log.Printf("Failed to send email to %s: %v", to.Email, err)
-		} else {
-			log.Printf("Email sent to %s. Status Code: %d", to.Email, response.StatusCode)
-			fmt.Println(response.Body)
-			fmt.Println(response.Headers)
 		}
 	}
 }
