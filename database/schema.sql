@@ -22,43 +22,42 @@ SET row_security = off;
 
 CREATE FUNCTION public.update_event_counts() RETURNS trigger
     LANGUAGE plpgsql
-    AS $$
+    AS $_$
+DECLARE
+    count_column TEXT;
 BEGIN
-    IF TG_OP = 'INSERT' THEN
-        -- Set the unix_timestamp
-        NEW.unix_timestamp := EXTRACT(EPOCH FROM NEW.created_at);
-        
-        -- Update only the latest event record
-        WITH latest_event AS (
-            SELECT id
-            FROM events
-            WHERE provider = NEW.provider 
-              AND event_type = NEW.event_type 
-              AND message_id = NEW.message_id
-              AND DATE(timestamp) = DATE(NEW.timestamp)
-            ORDER BY timestamp DESC
+    -- Determine which count column to update based on the event type
+    CASE NEW.event_type
+        WHEN 'delivered' THEN count_column := 'delivered_count';
+        WHEN 'opened' THEN count_column := 'opened_count';
+        WHEN 'clicked' THEN count_column := 'clicked_count';
+        WHEN 'bounced' THEN count_column := 'bounced_count';
+        WHEN 'spam' THEN count_column := 'spam_count';
+        WHEN 'unsubscribe' THEN count_column := 'unsubscribe_count';
+        WHEN 'processed' THEN count_column := 'processed_count';
+        WHEN 'dropped' THEN count_column := 'dropped_count';
+        WHEN 'deferred' THEN count_column := 'deferred_count';
+        ELSE RETURN NEW;  -- If it's not one of these events, don't update anything
+    END CASE;
+
+    -- Update the count for this user and event type
+    EXECUTE format('
+        WITH counts AS (
+            SELECT %I AS count
+            FROM %I
+            WHERE user_id = $1 AND id < $2
+            ORDER BY id DESC
             LIMIT 1
         )
-        UPDATE events e
-        SET total_count = total_count + 1,
-            daily_count = daily_count + 1,
-            hourly_count = CASE WHEN DATE_TRUNC('hour', e.timestamp) = DATE_TRUNC('hour', NEW.timestamp) THEN hourly_count + 1 ELSE 1 END,
-            unique_recipient_count = unique_recipient_count + (CASE WHEN e.recipient_email = NEW.recipient_email THEN 0 ELSE 1 END),
-            unique_sender_count = unique_sender_count + (CASE WHEN e.sender_email = NEW.sender_email THEN 0 ELSE 1 END),
-            campaign_count = campaign_count + (CASE WHEN e.campaign_id = NEW.campaign_id THEN 0 ELSE 1 END),
-            domain_count = domain_count + (CASE WHEN e.recipient_domain = NEW.recipient_domain THEN 0 ELSE 1 END),
-            updated_at = CURRENT_TIMESTAMP,
-            unix_timestamp = EXTRACT(EPOCH FROM CURRENT_TIMESTAMP)
-        FROM latest_event
-        WHERE e.id = latest_event.id;
-        
-        IF FOUND THEN
-            RETURN NULL;
-        END IF;
-    END IF;
+        UPDATE %I
+        SET %I = COALESCE((SELECT count FROM counts), 0) + 1
+        WHERE id = $2',
+        count_column, TG_TABLE_NAME, TG_TABLE_NAME, count_column)
+    USING NEW.user_id, NEW.id;
+
     RETURN NEW;
 END;
-$$;
+$_$;
 
 
 SET default_tablespace = '';
@@ -73,7 +72,6 @@ CREATE TABLE public.email_service_providers (
     esp_id integer NOT NULL,
     user_id integer NOT NULL,
     provider_name character varying(100) NOT NULL,
-    api_key character varying(255) NOT NULL,
     sending_domains text[] NOT NULL,
     created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
@@ -82,7 +80,8 @@ CREATE TABLE public.email_service_providers (
     sparkpost_webhook_password character varying(100),
     socketlabs_secret_key character varying(100),
     postmark_webhook_user character varying(100),
-    postmark_webhook_password character varying(100)
+    postmark_webhook_password character varying(100),
+    socketlabs_server_id character varying(25)
 );
 
 
@@ -121,7 +120,7 @@ CREATE TABLE public.postmark_events (
     details text,
     metadata jsonb,
     provider character varying(255),
-    event character varying(255),
+    event_type character varying(255),
     event_data jsonb,
     accept_encoding text[],
     content_length text[],
@@ -135,7 +134,18 @@ CREATE TABLE public.postmark_events (
     x_pm_webhook_event_id text[],
     x_pm_webhook_trace_id text[],
     created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
-    auth_header character varying(255) NOT NULL
+    auth_header character varying(255) NOT NULL,
+    "timestamp" bigint,
+    user_id integer,
+    delivered_count integer DEFAULT 0,
+    opened_count integer DEFAULT 0,
+    clicked_count integer DEFAULT 0,
+    bounced_count integer DEFAULT 0,
+    spam_count integer DEFAULT 0,
+    unsubscribe_count integer DEFAULT 0,
+    processed_count integer DEFAULT 0,
+    dropped_count integer DEFAULT 0,
+    deferred_count integer DEFAULT 0
 );
 
 
@@ -169,7 +179,7 @@ CREATE TABLE public.sendgrid_events (
     email character varying(255),
     "timestamp" bigint,
     smtp_id character varying(255),
-    event character varying(255),
+    event_type character varying(255),
     category text[],
     sg_event_id character varying(255),
     sg_message_id character varying(255),
@@ -181,7 +191,17 @@ CREATE TABLE public.sendgrid_events (
     x_forwarded_host text[],
     x_forwarded_proto text[],
     x_twilio_email_event_webhook_signature text[],
-    x_twilio_email_event_webhook_timestamp text[]
+    x_twilio_email_event_webhook_timestamp text[],
+    user_id integer,
+    delivered_count integer DEFAULT 0,
+    opened_count integer DEFAULT 0,
+    clicked_count integer DEFAULT 0,
+    bounced_count integer DEFAULT 0,
+    spam_count integer DEFAULT 0,
+    unsubscribe_count integer DEFAULT 0,
+    processed_count integer DEFAULT 0,
+    dropped_count integer DEFAULT 0,
+    deferred_count integer DEFAULT 0
 );
 
 
@@ -229,7 +249,18 @@ CREATE TABLE public.socketlabs_events (
     x_forwarded_host text[],
     x_forwarded_proto text[],
     x_socketlabs_signature text[],
-    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
+    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    "timestamp" bigint,
+    user_id integer,
+    delivered_count integer DEFAULT 0,
+    opened_count integer DEFAULT 0,
+    clicked_count integer DEFAULT 0,
+    bounced_count integer DEFAULT 0,
+    spam_count integer DEFAULT 0,
+    unsubscribe_count integer DEFAULT 0,
+    processed_count integer DEFAULT 0,
+    dropped_count integer DEFAULT 0,
+    deferred_count integer DEFAULT 0
 );
 
 
@@ -276,7 +307,17 @@ CREATE TABLE public.sparkpost_events (
     rcpt_to character varying(255),
     ip_address character varying(45),
     event_id character varying(255),
-    auth_header character varying(255) NOT NULL
+    auth_header character varying(255) NOT NULL,
+    user_id integer,
+    delivered_count integer DEFAULT 0,
+    opened_count integer DEFAULT 0,
+    clicked_count integer DEFAULT 0,
+    bounced_count integer DEFAULT 0,
+    spam_count integer DEFAULT 0,
+    unsubscribe_count integer DEFAULT 0,
+    processed_count integer DEFAULT 0,
+    dropped_count integer DEFAULT 0,
+    deferred_count integer DEFAULT 0
 );
 
 
@@ -305,13 +346,14 @@ ALTER SEQUENCE public.sparkpost_events_id_seq OWNED BY public.sparkpost_events.i
 --
 
 CREATE TABLE public.users (
-    user_id integer NOT NULL,
+    id integer NOT NULL,
     username character varying(50) NOT NULL,
     email character varying(255) NOT NULL,
     first_name character varying(50),
     last_name character varying(50),
     created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
-    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
+    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    api_key character varying(100)
 );
 
 
@@ -332,7 +374,7 @@ CREATE SEQUENCE public.users_user_id_seq
 -- Name: users_user_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
 
-ALTER SEQUENCE public.users_user_id_seq OWNED BY public.users.user_id;
+ALTER SEQUENCE public.users_user_id_seq OWNED BY public.users.id;
 
 
 --
@@ -371,18 +413,10 @@ ALTER TABLE ONLY public.sparkpost_events ALTER COLUMN id SET DEFAULT nextval('pu
 
 
 --
--- Name: users user_id; Type: DEFAULT; Schema: public; Owner: -
+-- Name: users id; Type: DEFAULT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.users ALTER COLUMN user_id SET DEFAULT nextval('public.users_user_id_seq'::regclass);
-
-
---
--- Name: email_service_providers email_service_providers_api_key_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.email_service_providers
-    ADD CONSTRAINT email_service_providers_api_key_key UNIQUE (api_key);
+ALTER TABLE ONLY public.users ALTER COLUMN id SET DEFAULT nextval('public.users_user_id_seq'::regclass);
 
 
 --
@@ -438,7 +472,7 @@ ALTER TABLE ONLY public.users
 --
 
 ALTER TABLE ONLY public.users
-    ADD CONSTRAINT users_pkey PRIMARY KEY (user_id);
+    ADD CONSTRAINT users_pkey PRIMARY KEY (id);
 
 
 --
@@ -447,6 +481,13 @@ ALTER TABLE ONLY public.users
 
 ALTER TABLE ONLY public.users
     ADD CONSTRAINT users_username_key UNIQUE (username);
+
+
+--
+-- Name: idx_email_service_providers_user_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_email_service_providers_user_id ON public.email_service_providers USING btree (user_id);
 
 
 --
@@ -467,7 +508,7 @@ CREATE INDEX idx_sendgrid_events_email_timestamp ON public.sendgrid_events USING
 -- Name: idx_sendgrid_events_event; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_sendgrid_events_event ON public.sendgrid_events USING btree (event);
+CREATE INDEX idx_sendgrid_events_event ON public.sendgrid_events USING btree (event_type);
 
 
 --
@@ -478,11 +519,92 @@ CREATE INDEX idx_sendgrid_events_sg_event_id ON public.sendgrid_events USING btr
 
 
 --
+-- Name: idx_sendgrid_events_user_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_sendgrid_events_user_id ON public.sendgrid_events USING btree (user_id);
+
+
+--
+-- Name: idx_socketlabs_events_user_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_socketlabs_events_user_id ON public.socketlabs_events USING btree (user_id);
+
+
+--
+-- Name: idx_sparkpost_events_user_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_sparkpost_events_user_id ON public.sparkpost_events USING btree (user_id);
+
+
+--
+-- Name: postmark_events update_postmark_event_counts; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER update_postmark_event_counts AFTER INSERT ON public.postmark_events FOR EACH ROW EXECUTE FUNCTION public.update_event_counts();
+
+
+--
+-- Name: sendgrid_events update_sendgrid_event_counts; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER update_sendgrid_event_counts AFTER INSERT ON public.sendgrid_events FOR EACH ROW EXECUTE FUNCTION public.update_event_counts();
+
+
+--
+-- Name: socketlabs_events update_socketlabs_event_counts; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER update_socketlabs_event_counts AFTER INSERT ON public.socketlabs_events FOR EACH ROW EXECUTE FUNCTION public.update_event_counts();
+
+
+--
+-- Name: sparkpost_events update_sparkpost_event_counts; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER update_sparkpost_event_counts AFTER INSERT ON public.sparkpost_events FOR EACH ROW EXECUTE FUNCTION public.update_event_counts();
+
+
+--
 -- Name: email_service_providers email_service_providers_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.email_service_providers
-    ADD CONSTRAINT email_service_providers_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(user_id) ON DELETE CASCADE;
+    ADD CONSTRAINT email_service_providers_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: sendgrid_events fk_sendgrid_events_user; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.sendgrid_events
+    ADD CONSTRAINT fk_sendgrid_events_user FOREIGN KEY (user_id) REFERENCES public.users(id);
+
+
+--
+-- Name: socketlabs_events fk_socketlabs_events_user; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.socketlabs_events
+    ADD CONSTRAINT fk_socketlabs_events_user FOREIGN KEY (user_id) REFERENCES public.users(id);
+
+
+--
+-- Name: sparkpost_events fk_sparkpost_events_user; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.sparkpost_events
+    ADD CONSTRAINT fk_sparkpost_events_user FOREIGN KEY (user_id) REFERENCES public.users(id);
+
+
+--
+-- Name: email_service_providers fk_user; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.email_service_providers
+    ADD CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES public.users(id);
 
 
 --

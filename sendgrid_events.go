@@ -124,7 +124,7 @@ func (e *SendgridEvent) UnmarshalSendgridEvent(data []byte, headers WebhookHeade
 	// Prepare SQL statement
 	stmt, err := db.Prepare(`
         INSERT INTO sendgrid_events (
-            provider, email, timestamp, smtp_id, event, category, sg_event_id, sg_message_id,
+            provider, email, timestamp, smtp_id, event_type, category, sg_event_id, sg_message_id,
             accept_encoding, content_length, content_type, user_agent, x_forwarded_for,
             x_forwarded_host, x_forwarded_proto, x_twilio_email_event_webhook_signature,
             x_twilio_email_event_webhook_timestamp
