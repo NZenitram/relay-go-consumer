@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
-	"log"
 	"net/http"
 	"strings"
 )
@@ -61,26 +59,18 @@ func SendEmailWithPostmark(emailMessage EmailMessage) error {
 	req.Header.Set("X-Postmark-Server-Token", serverToken)
 
 	// Send the request
+	sendEmail(req)
+	return nil
+}
+
+func sendEmail(req *http.Request) error {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to send HTTP request: %v", err)
 	}
-	defer resp.Body.Close()
 
-	// Read the response
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("failed to read response body: %v", err)
-	}
-
-	// Check for success status code
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("failed to send email, status: %s, response: %s", resp.Status, string(body))
-	}
-
-	log.Printf("Email sent successfully. Response: %s", string(body))
-	return nil
+	return HandlePostmarkResponse(resp)
 }
 
 func mapEmailMessageToPostmark(emailMessage EmailMessage) PostMarkMessage {
