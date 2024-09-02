@@ -90,7 +90,7 @@ func calculateWeights(credentials Credentials) (int, int, int, int) {
 	if credentials.SocketLabsServerID == "" || credentials.SocketLabsAPIKey == "" {
 		socketLabsWeight = 0
 	}
-	if credentials.PostmarkServerToken == "" || credentials.PostmarkAPIURL == "" {
+	if credentials.PostmarkServerToken == "" {
 		postmarkWeight = 0
 	}
 	if credentials.SendgridAPIKey == "" {
@@ -169,10 +169,10 @@ type Credentials struct {
 	SocketLabsAPIKey    string `json:"SocketLabsAPIkey"`
 	SocketLabsWeight    string `json:"SocketLabsWeight"`
 	PostmarkServerToken string `json:"PostmarkServerToken"`
-	PostmarkAPIURL      string `json:"PostmarkAPIURL"`
-	PostmarkWeight      string `json:"PostmarkWeight"`
-	SendgridAPIKey      string `json:"SendgridAPIKey"`
-	SendgridWeight      string `json:"SendgridWeight"`
-	SparkpostAPIKey     string `json:"SparkpostAPIKey"`
-	SparkpostWeight     string `json:"SparkpostWeight"`
+	// PostmarkAPIURL      string `json:"PostmarkAPIURL"`
+	PostmarkWeight  string `json:"PostmarkWeight"`
+	SendgridAPIKey  string `json:"SendgridAPIKey"`
+	SendgridWeight  string `json:"SendgridWeight"`
+	SparkpostAPIKey string `json:"SparkpostAPIKey"`
+	SparkpostWeight string `json:"SparkpostWeight"`
 }

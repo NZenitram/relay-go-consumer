@@ -24,11 +24,19 @@ func HandleSendgridError(res *rest.Response, err error, to string) {
 		return
 	}
 
-	if res.StatusCode != 200 {
+	if res.StatusCode != 202 {
+		if res.Body == "" {
+			log.Printf("Error response with empty body. Status code: %d", res.StatusCode)
+			// Handle empty error response
+			return
+		}
+
 		var errorResponse SendgridErrorResponse
 		err := json.Unmarshal([]byte(res.Body), &errorResponse)
 		if err != nil {
 			log.Printf("Failed to decode error response: %v", err)
+			log.Printf("Raw response body: %s", res.Body)
+			// Handle unmarshal error
 			return
 		}
 

@@ -77,7 +77,6 @@ This JSON structure allows for detailed customization of the email sending proce
     "SocketLabsAPIkey": "12345abcdefg",
     "SocketLabsWeight": "50",
     "PostmarkServerToken": "555555555-abcd-5555-9279-2bdaf804f19f",
-    "PostmarkAPIURL": "https://api.postmarkapp.com/email",
     "PostmarkWeight": "50"
   }
 }
@@ -151,12 +150,11 @@ This JSON structure allows for detailed customization of the email sending proce
     "SocketLabsAPIkey": "12345abcdefg",
     "SocketLabsWeight": "25",
     "PostmarkServerToken": "555555555-abcd-5555-9279-2bdaf804f19f",
-    "PostmarkAPIURL": "https://api.postmarkapp.com/email",
     "PostmarkWeight": "25",
-			"SendgridAPIKey": "SG.asdfasfasdfasfd---asdf.x_x7thLJSL0muwesXAPVgZcgA0",
-			"SendgridWeight": "25",
-			"SparkpostAPIKey": "asdfasdf3224512345sadfasdf",
-			"SparkpostWeight": "25"
+    "SendgridAPIKey": "SG.asdfasfasdfasfd---asdf.x_x7thLJSL0muwesXAPVgZcgA0",
+    "SendgridWeight": "25",
+    "SparkpostAPIKey": "asdfasdf3224512345sadfasdf",
+    "SparkpostWeight": "25"
 		}
 	}
 }
@@ -196,7 +194,6 @@ curl -X POST http://localhost:8888 -H "Content-Type: application/json" -d '{
     "SocketLabsAPIkey": "12345abcdefg",
     "SocketLabsWeight": "50",
     "PostmarkServerToken": "555555555-abcd-5555-9279-2bdaf804f19f",
-    "PostmarkAPIURL": "https://api.postmarkapp.com/email",
     "PostmarkWeight": "50"
   }
 }'
@@ -237,11 +234,63 @@ curl -X POST http://localhost:8888 -H "Content-Type: application/json" -d '{
     "SocketLabsAPIkey": "12345abcdefg",
     "SocketLabsWeight": "50",
     "PostmarkServerToken": "555555555-abcd-5555-9279-2bdaf804f19f",
-    "PostmarkAPIURL": "https://api.postmarkapp.com/email",
-    "PostmarkWeight": "50"
+s    "PostmarkWeight": "50"
   }
 }'
 ```
+
+```bash
+curl -X POST https://horribly-striking-joey.ngrok-free.app/emails -H "Content-Type: application/json" -d  '{
+  "from": "Twitter Zen <test@nzenitram.com>",
+  "to": [
+    "\"Nick Martinez, Jr.\" <twitter1@nzenitram.com>",
+    "Mick Nartinez <nzenitram@nzenitram.com>",
+    "Admin ESP <admin@esprelay.com>",
+    "Admin Webhook <admin@webhookrelays.com>",
+    "Test ESP <test@esprelay.com>",
+    "YF CLickALeague <yourfriends@clickaleague.com>",
+    "\"Nick Martinez, Jr.\" <twitter1@nzenitram.com>",
+    "Mick Nartinez <nzenitram@nzenitram.com>",
+    "Admin ESP <admin@esprelay.com>",
+    "Admin Webhook <admin@webhookrelays.com>",
+    "Test ESP <test@esprelay.com>"
+  ],
+  "cc": ["nick1@nzenitram.com"],
+  "bcc": ["support@nzenitram.com"],
+  "subject": "Updating the subject to reflect the test",
+  "textbody": "",
+  "htmlbody": "<p>This is the <strong>HTML</strong> body of the email.</p>",
+  "attachments": [
+    {
+      "name": "example.txt",
+      "contenttype": "text/plain",
+      "content": "SGVsbG8gd29ybGQh"
+    }
+  ],
+  "headers": {
+    "X-Custom-Header-1": "Custom Value 1",
+    "X-Custom-Header-2": "Custom Value 2"
+  },
+  "data": {
+    "TrackOpens": true,
+    "TrackLinks": "HtmlOnly",
+    "MessageStream": "outbound"
+    },
+  "credentials": {
+    "SocketLabsServerID": "39044",
+    "SocketLabsAPIkey": "Jn42Qbx7H5TyFo36Wzp8",
+    "SocketLabsWeight": "25",
+    "PostmarkServerToken": "66422125-a3f0-4690-9279-2bdaf804f19f",
+    "PostmarkWeight": "25",
+    "SendgridAPIKey": "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",
+    "SendgridWeight": "25",
+    "SparkpostAPIKey": "d62547b5a928d878d08fdb6e17d682bf1d61c364",
+    "SparkpostWeight": "25"
+    }
+}'
+```
+
+
 
 ### Instructions for `textbody` vs `htmlbody`
 
@@ -437,3 +486,5 @@ curl -X POST http://localhost:8888 -H "Content-Type: application/json" -d '[
   }
 ]'
 ```
+
+
