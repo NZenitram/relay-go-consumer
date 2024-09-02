@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/base64"
+	"fmt"
 	"log"
 	"strconv"
 
@@ -9,12 +10,13 @@ import (
 	"github.com/socketlabs/socketlabs-go/injectionapi/message"
 )
 
-func SendEmailWithSocketLabs(emailMessage EmailMessage) {
+func SendEmailWithSocketLabs(emailMessage EmailMessage) error {
 	// Use credentials from the EmailMessage
 	serverID, _ := strconv.Atoi(emailMessage.Credentials.SocketLabsServerID)
 	apiKey := emailMessage.Credentials.SocketLabsAPIKey
 
 	client := injectionapi.CreateClient(serverID, apiKey)
+	errorHandler := NewSocketLabsErrorHandler()
 
 	// Iterate over each recipient in the "To" field
 	for _, to := range emailMessage.To {
@@ -62,9 +64,19 @@ func SendEmailWithSocketLabs(emailMessage EmailMessage) {
 		}
 
 		// Send the email
-		_, err := client.SendBasic(&basic)
+		res, err := client.SendBasic(&basic)
+
 		if err != nil {
-			log.Printf("Failed to send email to %s: %v", to.Email, err)
+			errorHandler.HandleSendError(to.Email, err, &res)
+			return fmt.Errorf("failed to send email: %v", err)
 		}
+		if res.Result != injectionapi.SendResultSUCCESS {
+			err := fmt.Errorf("send unsuccessful: %s - %s", res.Result.ToString(), res.Result.ToResponseMessage())
+			errorHandler.HandleSendError(to.Email, err, &res)
+			return err
+		}
+
 	}
+
+	return nil
 }
