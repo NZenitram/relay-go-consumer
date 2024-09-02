@@ -72,15 +72,17 @@ func (e *SocketLabsBaseEvent) saveToDatabase(eventData []byte, headers Socketlab
 			event_type, date_time, mailing_id, message_id, address, server_id, subaccount_id, 
 			ip_pool_id, secret_key, event_data,
 			accept_encoding, content_length, content_type, user_agent, x_forwarded_for,
-			x_forwarded_host, x_forwarded_proto, x_socketlabs_signature
+			x_forwarded_host, x_forwarded_proto, x_socketlabs_signature, timestamp
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19
 		)
 	`)
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
+
+	currentTimestamp := time.Now().Unix()
 
 	_, err = stmt.Exec(
 		strings.ToLower(e.Type),
@@ -101,6 +103,7 @@ func (e *SocketLabsBaseEvent) saveToDatabase(eventData []byte, headers Socketlab
 		pq.Array(headers.XForwardedHost),
 		pq.Array(headers.XForwardedProto),
 		pq.Array(headers.XSocketlabsSignature),
+		currentTimestamp,
 	)
 
 	return err

@@ -21,6 +21,7 @@ type PostmarkWebhookPayload struct {
 // WebhookHeaders represents the headers in the webhook payload
 type PostmarkWebhookHeaders struct {
 	AcceptEncoding      []string `json:"Accept-Encoding"`
+	Authorization       []string `json:"Authorization"`
 	ContentLength       []string `json:"Content-Length"`
 	ContentType         []string `json:"Content-Type"`
 	Expect              []string `json:"Expect"`
@@ -107,14 +108,14 @@ func (p *PostmarkEvent) saveToDatabase(eventData []byte, headers PostmarkWebhook
 	db := database.GetDB()
 
 	stmt, err := db.Prepare(`
-		INSERT INTO postmarkeventwithheaders (
+		INSERT INTO postmark_events (
 			record_type, server_id, message_id, recipient, tag, delivered_at, details, metadata, provider,
 			event, event_data,
 			accept_encoding, content_length, content_type, expect, user_agent, x_forwarded_for,
 			x_forwarded_host, x_forwarded_proto, x_pm_retries_remaining, x_pm_webhook_event_id,
-			x_pm_webhook_trace_id
+			x_pm_webhook_trace_id, auth_header, timestamp
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24
 		)
 	`)
 	if err != nil {
@@ -126,6 +127,8 @@ func (p *PostmarkEvent) saveToDatabase(eventData []byte, headers PostmarkWebhook
 	if err != nil {
 		return err
 	}
+
+	currentTimestamp := time.Now().Unix()
 
 	_, err = stmt.Exec(
 		strings.ToLower(p.RecordType),
@@ -150,6 +153,8 @@ func (p *PostmarkEvent) saveToDatabase(eventData []byte, headers PostmarkWebhook
 		pq.Array(headers.XPmRetriesRemaining),
 		pq.Array(headers.XPmWebhookEventId),
 		pq.Array(headers.XPmWebhookTraceId),
+		pq.Array(headers.Authorization),
+		currentTimestamp,
 	)
 
 	return err

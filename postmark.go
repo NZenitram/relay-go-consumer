@@ -34,7 +34,7 @@ type CustomHeader struct {
 func SendEmailWithPostmark(emailMessage EmailMessage) error {
 	// Extract credentials from the email message
 	serverToken := emailMessage.Credentials.PostmarkServerToken
-	apiURL := emailMessage.Credentials.PostmarkAPIURL
+	apiURL := "https://api.postmarkapp.com/email"
 
 	// Strip credentials from the email message
 	emailMessage.Credentials = Credentials{}
