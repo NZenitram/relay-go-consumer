@@ -28,29 +28,6 @@ type EventBody struct {
 	Reason        string   `json:"reason,omitempty"`
 }
 
-type StandardizedEvent struct {
-	MessageID        string
-	Provider         string
-	Processed        bool
-	ProcessedTime    int64
-	Delivered        bool
-	DeliveredTime    *int64
-	Bounce           bool
-	BounceType       string
-	BounceTime       *int64
-	Deferred         bool
-	DeferredCount    int
-	LastDeferralTime *int64
-	UniqueOpen       bool
-	UniqueOpenTime   *int64
-	Open             bool
-	OpenCount        int
-	LastOpenTime     *int64
-	Dropped          bool
-	DroppedTime      *int64
-	DroppedReason    string
-}
-
 func ProcessSendgridEvents(msg *sarama.ConsumerMessage) {
 	var payload EventPayload
 	err := json.Unmarshal(msg.Value, &payload)
