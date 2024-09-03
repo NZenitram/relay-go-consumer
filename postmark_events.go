@@ -110,7 +110,7 @@ func (p *PostmarkEvent) saveToDatabase(eventData []byte, headers PostmarkWebhook
 	stmt, err := db.Prepare(`
 		INSERT INTO postmark_events (
 			record_type, server_id, message_id, recipient, tag, delivered_at, details, metadata, provider,
-			event, event_data,
+			event_type, event_data,
 			accept_encoding, content_length, content_type, expect, user_agent, x_forwarded_for,
 			x_forwarded_host, x_forwarded_proto, x_pm_retries_remaining, x_pm_webhook_event_id,
 			x_pm_webhook_trace_id, auth_header, timestamp
