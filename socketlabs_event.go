@@ -54,7 +54,7 @@ type SocketLabsBaseEvent struct {
 	SecretKey    string    `json:"SecretKey"`
 	TrackingType int       `json:"TrackingType"`
 	DeferralCode int       `json:"DeferralCode"`
-	Reason       string    `json"Reason"`
+	Reason       string    `json:"Reason"`
 	FailureType  string    `json:"FailureType"`
 }
 
