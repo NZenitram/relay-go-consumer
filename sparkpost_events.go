@@ -1,12 +1,9 @@
 package main
 
 import (
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"strconv"
-
-	"relay-go-consumer/database"
 
 	"github.com/IBM/sarama"
 )
@@ -39,7 +36,7 @@ func ProcessSparkPostEvents(msg *sarama.ConsumerMessage) {
 
 	for _, event := range sparkPostPayload {
 		standardizedEvent := standardizeSparkPostEvent(event)
-		err = saveStandardizedSparkPostEvent(standardizedEvent)
+		err = saveStandardizedEvent(standardizedEvent)
 		if err != nil {
 			fmt.Printf("Error saving standardized event: %v\n", err)
 		}
@@ -100,113 +97,6 @@ func standardizeSparkPostEvent(event struct {
 	}
 
 	return standardEvent
-}
-
-func saveStandardizedSparkPostEvent(event StandardizedEvent) error {
-	database.InitDB()
-	db := database.GetDB()
-
-	// First, try to update an existing record
-	stmt, err := db.Prepare(`
-        UPDATE events SET
-            provider = $2,
-            processed = $3,
-            processed_time = $4,
-            delivered = $5,
-            delivered_time = COALESCE($6, delivered_time),
-            bounce = $7,
-            bounce_type = COALESCE($8, bounce_type),
-            bounce_time = COALESCE($9, bounce_time),
-            deferred = $10,
-            deferred_count = deferred_count + $11,
-            last_deferral_time = COALESCE($12, last_deferral_time),
-            open = $13,
-            open_count = open_count + $14,
-            last_open_time = COALESCE($15, last_open_time),
-            unique_open = $16,
-            unique_open_time = COALESCE($17, unique_open_time),
-            dropped = $18,
-            dropped_time = COALESCE($19, dropped_time),
-            dropped_reason = COALESCE($20, dropped_reason)
-        WHERE message_id = $1
-        RETURNING message_id
-    `)
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
-
-	var updatedMessageID string
-	err = stmt.QueryRow(
-		event.MessageID,
-		event.Provider,
-		event.Processed,
-		event.ProcessedTime,
-		event.Delivered,
-		event.DeliveredTime,
-		event.Bounce,
-		event.BounceType,
-		event.BounceTime,
-		event.Deferred,
-		event.DeferredCount,
-		event.LastDeferralTime,
-		event.Open,
-		event.OpenCount,
-		event.LastOpenTime,
-		event.UniqueOpen,
-		event.UniqueOpenTime,
-		event.Dropped,
-		event.DroppedTime,
-		event.DroppedReason,
-	).Scan(&updatedMessageID)
-
-	if err == sql.ErrNoRows {
-		// If no existing record was updated, insert a new one
-		insertStmt, err := db.Prepare(`
-            INSERT INTO events (
-                message_id, provider, processed, processed_time, delivered, delivered_time,
-                bounce, bounce_type, bounce_time, deferred, deferred_count, last_deferral_time,
-                open, open_count, last_open_time, unique_open, unique_open_time,
-                dropped, dropped_time, dropped_reason
-            ) VALUES (
-                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20
-            )
-        `)
-		if err != nil {
-			return err
-		}
-		defer insertStmt.Close()
-
-		_, err = insertStmt.Exec(
-			event.MessageID,
-			event.Provider,
-			event.Processed,
-			event.ProcessedTime,
-			event.Delivered,
-			event.DeliveredTime,
-			event.Bounce,
-			event.BounceType,
-			event.BounceTime,
-			event.Deferred,
-			event.DeferredCount,
-			event.LastDeferralTime,
-			event.Open,
-			event.OpenCount,
-			event.LastOpenTime,
-			event.UniqueOpen,
-			event.UniqueOpenTime,
-			event.Dropped,
-			event.DroppedTime,
-			event.DroppedReason,
-		)
-		if err != nil {
-			return err
-		}
-	} else if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 type GeoIP struct {
@@ -313,139 +203,3 @@ type SparkPostWebhookHeaders struct {
 	XForwardedProto     []string `json:"X-Forwarded-Proto"`
 	XSparkpostSignature []string `json:"X-Sparkpost-Signature"`
 }
-
-// // ... (keep all your existing struct definitions for GeoIP, UserAgentParsed, etc.)
-
-// type SparkPostEventUnmarshaler interface {
-// 	UnmarshalSparkPostEvent(data []byte, headers SparkPostWebhookHeaders) error
-// }
-
-// func (c *CommonEventFields) UnmarshalSparkPostEvent(data []byte, headers SparkPostWebhookHeaders) error {
-// 	var payload []struct {
-// 		Msys struct {
-// 			MessageEvent *CommonEventFields `json:"message_event,omitempty"`
-// 			TrackEvent   *CommonEventFields `json:"track_event,omitempty"`
-// 		} `json:"msys"`
-// 	}
-
-// 	if err := json.Unmarshal(data, &payload); err != nil {
-// 		return err
-// 	}
-
-// 	if len(payload) == 0 {
-// 		return fmt.Errorf("empty payload")
-// 	}
-
-// 	var event *CommonEventFields
-// 	if payload[0].Msys.MessageEvent != nil {
-// 		event = payload[0].Msys.MessageEvent
-// 	} else if payload[0].Msys.TrackEvent != nil {
-// 		event = payload[0].Msys.TrackEvent
-// 	} else {
-// 		return fmt.Errorf("no recognized event type in payload")
-// 	}
-
-// 	*c = *event // Copy the unmarshaled data to the receiver
-
-// 	fmt.Printf("Unmarshalled data: %+v\n", c)
-
-// 	return c.saveToDatabase(data, headers)
-// }
-
-// func (c *CommonEventFields) saveToDatabase(eventData []byte, headers SparkPostWebhookHeaders) error {
-// 	database.InitDB()
-// 	db := database.GetDB()
-
-// 	stmt, err := db.Prepare(`
-// 		INSERT INTO sparkpost_events (
-// 			event_type, message_id, transmission_id, event_data,
-// 			accept_encoding, content_length, content_type, user_agent, x_forwarded_for,
-// 			x_forwarded_host, x_forwarded_proto, x_sparkpost_signature, auth_header,
-// 			timestamp, rcpt_to, ip_address, event_id, timestamp
-// 		) VALUES (
-// 			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
-// 		)
-// 	`)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	defer stmt.Close()
-
-// 	timeAsInt, _ := strconv.Atoi(c.Timestamp)
-
-// 	_, err = stmt.Exec(
-// 		c.Type,
-// 		c.MessageID,
-// 		c.TransmissionID,
-// 		string(eventData),
-// 		pq.Array(headers.AcceptEncoding),
-// 		pq.Array(headers.ContentLength),
-// 		pq.Array(headers.ContentType),
-// 		pq.Array(headers.UserAgent),
-// 		pq.Array(headers.XForwardedFor),
-// 		pq.Array(headers.XForwardedHost),
-// 		pq.Array(headers.XForwardedProto),
-// 		pq.Array(headers.XSparkpostSignature),
-// 		pq.Array(headers.Authorization),
-// 		timeAsInt,
-// 		c.RcptTo,
-// 		c.IPAddress,
-// 		c.EventID,
-// 	)
-
-// 	return err
-// }
-
-// func (e *MessageEvent) UnmarshalSparkPostEvent(data []byte, headers SparkPostWebhookHeaders) error {
-// 	return e.CommonEventFields.UnmarshalSparkPostEvent(data, headers)
-// }
-
-// func (e *TrackEvent) UnmarshalSparkPostEvent(data []byte, headers SparkPostWebhookHeaders) error {
-// 	return e.CommonEventFields.UnmarshalSparkPostEvent(data, headers)
-// }
-
-// type SparkPostPayload []struct {
-// 	Msys struct {
-// 		MessageEvent *MessageEvent `json:"message_event,omitempty"`
-// 		TrackEvent   *TrackEvent   `json:"track_event,omitempty"`
-// 	} `json:"msys"`
-// }
-
-// func ProcessSparkPostEvents(msg *sarama.ConsumerMessage) {
-// 	var payload struct {
-// 		Headers SparkPostWebhookHeaders `json:"headers"`
-// 		Body    json.RawMessage         `json:"body"`
-// 	}
-// 	err := json.Unmarshal(msg.Value, &payload)
-// 	if err != nil {
-// 		fmt.Printf("Failed to unmarshal message: %v\n", err)
-// 		return
-// 	}
-// 	var sparkPostPayload SparkPostPayload
-
-// 	err = json.Unmarshal(payload.Body, &sparkPostPayload)
-// 	if err != nil {
-// 		fmt.Printf("Error unmarshaling JSON: %v\n", err)
-// 		return
-// 	}
-
-// 	for _, event := range sparkPostPayload {
-// 		var sparkPostEvent SparkPostEventUnmarshaler
-
-// 		if event.Msys.MessageEvent != nil {
-// 			sparkPostEvent = event.Msys.MessageEvent
-// 			// fmt.Printf("Message Event Type: %s\n", event.Msys.MessageEvent.Type)
-// 		} else if event.Msys.TrackEvent != nil {
-// 			sparkPostEvent = event.Msys.TrackEvent
-// 			// fmt.Printf("Track Event Type: %s\n", event.Msys.TrackEvent.Type)
-// 		} else {
-// 			fmt.Println("Unknown event type")
-// 			continue
-// 		}
-
-// 		err = sparkPostEvent.UnmarshalSparkPostEvent(payload.Body, payload.Headers)
-// 		if err != nil {
-// 			fmt.Printf("Error unmarshaling and saving event to database: %v\n", err)
-// 		}
-// 	}
-// }
