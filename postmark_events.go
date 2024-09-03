@@ -94,7 +94,7 @@ func standardizePostmarkEvent(event PostmarkEvent) StandardizedEvent {
 	case "Open":
 		standardEvent.Open = true
 		openTime := event.ReceivedAt.Unix()
-		standardEvent.LastOpenTime = &openTime
+		standardEvent.UniqueOpenTime = &openTime
 		standardEvent.OpenCount = 1
 	}
 
