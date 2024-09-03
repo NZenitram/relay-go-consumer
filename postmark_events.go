@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"relay-go-consumer/database"
-	"strconv"
 	"time"
 
 	"github.com/IBM/sarama"
@@ -46,7 +45,7 @@ func ProcessPostmarkEvents(msg *sarama.ConsumerMessage) {
 		return
 	}
 
-	standardizedEvent := standardizePostmarkEvent(baseEvent, payload.Headers)
+	standardizedEvent := standardizePostmarkEvent(baseEvent)
 	err = saveStandardizedPostMarkEvent(standardizedEvent)
 	if err != nil {
 		fmt.Printf("Failed to save standardized event: %v\n", err)
@@ -54,34 +53,26 @@ func ProcessPostmarkEvents(msg *sarama.ConsumerMessage) {
 }
 
 type PostmarkEvent struct {
-	RecordType   string    `json:"RecordType"`
-	ServerID     int       `json:"ServerID"`
-	MessageID    string    `json:"MessageID"`
-	Recipient    string    `json:"Recipient"`
-	Tag          string    `json:"Tag"`
-	DeliveredAt  time.Time `json:"DeliveredAt"`
-	Details      string    `json:"Details"`
-	Type         string    `json:"Type"`
-	TypeCode     int       `json:"TypeCode"`
-	BouncedAt    time.Time `json:"BouncedAt"`
-	BounceReason string    `json:"Description"`
-	BounceEmail  string    `json:"Email"`
-	ReceivedAt   time.Time `json:"ReceivedAt"`
+	RecordType  string    `json:"RecordType"`
+	ServerID    int       `json:"ServerID"`
+	MessageID   string    `json:"MessageID"`
+	Recipient   string    `json:"Recipient"`
+	Tag         string    `json:"Tag"`
+	DeliveredAt time.Time `json:"DeliveredAt"`
+	Details     string    `json:"Details"`
+	Type        string    `json:"Type"`
+	TypeCode    int       `json:"TypeCode"`
+	BouncedAt   time.Time `json:"BouncedAt"`
+	BounceEmail string    `json:"Email"`
+	ReceivedAt  time.Time `json:"ReceivedAt"`
 }
 
-func standardizePostmarkEvent(event PostmarkEvent, headers PostmarkWebhookHeaders) StandardizedEvent {
+func standardizePostmarkEvent(event PostmarkEvent) StandardizedEvent {
 	standardEvent := StandardizedEvent{
-		MessageID: event.MessageID,
-		Provider:  "postmark",
-		Processed: true,
-	}
-
-	// Convert the X-Pm-Webhook-Event-Id timestamp to int64 for ProcessedTime
-	if len(headers.XPmWebhookEventId) > 0 {
-		timestamp, err := strconv.ParseInt(headers.XPmWebhookEventId[0], 10, 64)
-		if err == nil {
-			standardEvent.ProcessedTime = timestamp
-		}
+		MessageID:     event.MessageID,
+		Provider:      "postmark",
+		Processed:     true,
+		ProcessedTime: time.Now().Unix(),
 	}
 
 	switch event.RecordType {
@@ -98,7 +89,7 @@ func standardizePostmarkEvent(event PostmarkEvent, headers PostmarkWebhookHeader
 		if event.Type == "HardBounce" {
 			standardEvent.Dropped = true
 			standardEvent.DroppedTime = &bounceTime
-			standardEvent.DroppedReason = event.BounceReason
+			standardEvent.DroppedReason = event.Details
 		}
 	case "Open":
 		standardEvent.Open = true
@@ -161,9 +152,10 @@ func saveStandardizedPostMarkEvent(event StandardizedEvent) error {
 		insertStmt, err := db.Prepare(`
             INSERT INTO events (
                 message_id, provider, processed, processed_time, delivered, delivered_time,
-                bounce, bounce_type, bounce_time, dropped, dropped_time, dropped_reason
+                unique_open, unique_open_time, bounce, bounce_type, bounce_time, dropped, 
+				dropped_time, dropped_reason
             ) VALUES (
-                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
             )
         `)
 		if err != nil {
@@ -178,6 +170,8 @@ func saveStandardizedPostMarkEvent(event StandardizedEvent) error {
 			event.ProcessedTime,
 			event.Delivered,
 			event.DeliveredTime,
+			event.Open,
+			event.UniqueOpenTime,
 			event.Bounce,
 			event.BounceType,
 			event.BounceTime,
