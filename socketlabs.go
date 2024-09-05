@@ -1,10 +1,13 @@
 package main
 
 import (
+	"crypto/md5"
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"log"
 	"strconv"
+	"time"
 
 	"github.com/socketlabs/socketlabs-go/injectionapi"
 	"github.com/socketlabs/socketlabs-go/injectionapi/message"
@@ -17,6 +20,9 @@ func SendEmailWithSocketLabs(emailMessage EmailMessage) error {
 
 	client := injectionapi.CreateClient(serverID, apiKey)
 	errorHandler := NewSocketLabsErrorHandler()
+
+	// Generate X-xsMessageId
+	xxsMessageId := generateXxsMessageId(apiKey)
 
 	// Iterate over each recipient in the "To" field
 	for _, to := range emailMessage.To {
@@ -58,8 +64,22 @@ func SendEmailWithSocketLabs(emailMessage EmailMessage) error {
 			basic.Attachments = append(basic.Attachments, socketLabsAttachment)
 		}
 
-		// Add custom headers
+		// Initialize a map to store all headers
+		allHeaders := make(map[string]string)
+
+		// Add the custom X-xsMessageId header
+		allHeaders["X-xsMessageId"] = xxsMessageId
+
+		// Add all headers from emailMessage.Headers
 		for key, value := range emailMessage.Headers {
+			allHeaders[key] = value
+		}
+
+		// Clear existing CustomHeaders to avoid duplication
+		basic.CustomHeaders = nil
+
+		// Add all headers to CustomHeaders
+		for key, value := range allHeaders {
 			basic.CustomHeaders = append(basic.CustomHeaders, message.CustomHeader{Name: key, Value: value})
 		}
 
@@ -79,4 +99,14 @@ func SendEmailWithSocketLabs(emailMessage EmailMessage) error {
 	}
 
 	return nil
+}
+
+func generateXxsMessageId(apiKey string) string {
+	// Create a unique string using apiKey and current timestamp
+	uniqueString := fmt.Sprintf("%s-%d", apiKey, time.Now().UnixNano())
+
+	// Create MD5 hash
+	hasher := md5.New()
+	hasher.Write([]byte(uniqueString))
+	return hex.EncodeToString(hasher.Sum(nil))
 }
