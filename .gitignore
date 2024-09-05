@@ -16,6 +16,8 @@
 
 # Dependency directories (remove the comment below to include it)
 # vendor/
+database/dump.sql*
+database/dump.sql.zip
 
 # Go workspace file
 go.work

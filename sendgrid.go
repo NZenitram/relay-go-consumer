@@ -13,7 +13,6 @@ func SendEmailWithSendGrid(emailMessage EmailMessage) {
 	apiKey := emailMessage.Credentials.SendgridAPIKey
 
 	client := sendgrid.NewSendClient(apiKey)
-
 	// Iterate over each recipient in the "To" field
 	for _, to := range emailMessage.To {
 		// Create the email message for each recipient
