@@ -19,6 +19,7 @@
 database/dump.sql*
 database/dump.sql.zip
 
+
 # Go workspace file
 go.work
 go.work.sum
@@ -27,3 +28,4 @@ go.work.sum
 .env
 SensitiveQueries.md
 __debug_bin
+payload.json
