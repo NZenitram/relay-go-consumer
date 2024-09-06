@@ -84,16 +84,16 @@ func mapEmailMessageToPostmark(emailMessage EmailMessage) PostMarkMessage {
 	var postMarkMessage PostMarkMessage
 	for _, addr := range emailMessage.To {
 		postMarkMessage = PostMarkMessage{
-			From:          emailMessage.From.Email,
-			To:            addr.Email,
-			Cc:            strings.Join(emailMessage.Cc, ", "),
-			Bcc:           strings.Join(emailMessage.Bcc, ", "),
-			Subject:       emailMessage.Subject,
-			Tag:           "",                    // Optional, set as needed
-			HtmlBody:      emailMessage.HtmlBody, // Assuming Body is used as HtmlBody
-			TextBody:      emailMessage.TextBody, // Assuming Body is used as TextBody
-			ReplyTo:       "",                    // Optional, set as needed
-			Metadata:      emailMessage.AdditionalData,
+			From:     emailMessage.From.Email,
+			To:       addr.Email,
+			Cc:       strings.Join(emailMessage.Cc, ", "),
+			Bcc:      strings.Join(emailMessage.Bcc, ", "),
+			Subject:  emailMessage.Subject,
+			Tag:      "",                    // Optional, set as needed
+			HtmlBody: emailMessage.HtmlBody, // Assuming Body is used as HtmlBody
+			TextBody: emailMessage.TextBody, // Assuming Body is used as TextBody
+			ReplyTo:  "",                    // Optional, set as needed
+			// Metadata:      emailMessage.AdditionalData,
 			Headers:       headers,
 			Attachments:   emailMessage.Attachments,
 			TrackOpens:    true,       // or false, set as needed

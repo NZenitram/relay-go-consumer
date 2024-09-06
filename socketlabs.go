@@ -58,7 +58,7 @@ func SendEmailWithSocketLabs(emailMessage EmailMessage) error {
 			}
 			socketLabsAttachment := message.Attachment{
 				Content:  content,
-				MimeType: attachment.ContentType,
+				MimeType: attachment.Type,
 				Name:     attachment.Name,
 			}
 			basic.Attachments = append(basic.Attachments, socketLabsAttachment)
@@ -83,6 +83,7 @@ func SendEmailWithSocketLabs(emailMessage EmailMessage) error {
 			basic.CustomHeaders = append(basic.CustomHeaders, message.CustomHeader{Name: key, Value: value})
 		}
 
+		log.Printf("%v", &basic)
 		// Send the email
 		res, err := client.SendBasic(&basic)
 
