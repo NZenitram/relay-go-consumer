@@ -24,41 +24,32 @@ func ProcessEmailMessages(msg *sarama.ConsumerMessage) {
 	}
 
 	emailMessage := kafkaMessage.Body
-	// Extract credentials from the email message
 	credentials := emailMessage.Credentials
 	socketLabsWeight, postmarkWeight, sendGridWeight, sparkPostWeight := calculateWeights(credentials)
 
-	// Select sender based on available weights
-
-	for _, recipient := range emailMessage.To {
-		// Create a new EmailMessage for each recipient
-		individualEmail := EmailMessage{
-			From:           emailMessage.From,
-			To:             []EmailAddress{recipient}, // Single recipient
-			Cc:             emailMessage.Cc,
-			Bcc:            emailMessage.Bcc,
-			Subject:        emailMessage.Subject,
-			TextBody:       emailMessage.TextBody,
-			HtmlBody:       emailMessage.HtmlBody,
-			Attachments:    emailMessage.Attachments,
-			Headers:        emailMessage.Headers,
-			AdditionalData: emailMessage.AdditionalData,
-			Credentials:    emailMessage.Credentials,
+	// If there are no personalizations, create one for each recipient
+	if len(emailMessage.Personalizations) == 0 {
+		for _, recipient := range emailMessage.To {
+			emailMessage.Personalizations = append(emailMessage.Personalizations, Personalization{
+				To:            recipient,
+				Subject:       emailMessage.Subject,
+				Substitutions: make(map[string]string),
+			})
 		}
+	}
 
-		sender := SelectSender(socketLabsWeight, postmarkWeight, sendGridWeight, sparkPostWeight)
-		switch sender {
-		case "SocketLabs":
-			SendEmailWithSocketLabs(individualEmail)
-		case "Postmark":
-			SendEmailWithPostmark(individualEmail)
-		case "SendGrid":
-			SendEmailWithSendGrid(individualEmail)
-		case "SparkPost":
-			SendEmailWithSparkPost(individualEmail)
-		default:
-			log.Printf("No valid credentials found for any sender for recipient: %s", recipient.Email)
-		}
+	sender := SelectSender(socketLabsWeight, postmarkWeight, sendGridWeight, sparkPostWeight)
+	switch sender {
+	case "SendGrid":
+		SendEmailWithSendGrid(emailMessage)
+	case "SocketLabs":
+		SendEmailWithSocketLabs(emailMessage)
+	case "Postmark":
+		SendEmailWithPostmark(emailMessage)
+	case "SparkPost":
+		SendEmailWithSparkPost(emailMessage)
+	default:
+		log.Printf("No valid credentials found for any sender")
 	}
 }
 
@@ -103,11 +94,6 @@ func calculateWeights(credentials Credentials) (int, int, int, int) {
 	return socketLabsWeight, postmarkWeight, sendGridWeight, sparkPostWeight
 }
 
-type EmailAddress struct {
-	Email string `json:"email"`
-	Name  string `json:"name"`
-}
-
 // Custom unmarshaling logic for EmailAddress
 func (e *EmailAddress) UnmarshalJSON(data []byte) error {
 	// Attempt to unmarshal as a simple string
@@ -145,23 +131,45 @@ func (e *EmailAddress) UnmarshalJSON(data []byte) error {
 }
 
 type Attachment struct {
-	Name        string `json:"Name"`
-	ContentType string `json:"ContentType"`
-	Content     string `json:"Content"`
+	Content     string `json:"content"`
+	ContentID   string `json:"content_id"`
+	Disposition string `json:"disposition"`
+	Filename    string `json:"filename"`
+	Name        string `json:"name"`
+	Type        string `json:"type"`
 }
 
 type EmailMessage struct {
-	From           EmailAddress      `json:"from"`
-	To             []EmailAddress    `json:"to"`
-	Cc             []string          `json:"cc"`
-	Bcc            []string          `json:"bcc"`
-	Subject        string            `json:"subject"`
-	TextBody       string            `json:"textbody"`
-	HtmlBody       string            `json:"htmlbody"`
-	Attachments    []Attachment      `json:"attachments"`
-	Headers        map[string]string `json:"headers"`
-	AdditionalData map[string]string `json:"additionaldata"`
-	Credentials    Credentials       `json:"credentials"`
+	From             EmailAddress
+	To               []EmailAddress
+	Cc               []string
+	Bcc              []string
+	Subject          string
+	TextBody         string
+	HtmlBody         string
+	Content          []Content
+	Attachments      []Attachment
+	Headers          map[string]string
+	Data             map[string]interface{}
+	Credentials      Credentials
+	Personalizations []Personalization
+	Sections         map[string]string
+	Categories       []string
+}
+type Content struct {
+	Type  string `json:"type"`
+	Value string `json:"value"`
+}
+
+type Personalization struct {
+	To            EmailAddress
+	Subject       string
+	Substitutions map[string]string
+}
+
+type EmailAddress struct {
+	Name  string
+	Email string
 }
 
 type Credentials struct {
@@ -169,12 +177,11 @@ type Credentials struct {
 	SocketLabsAPIKey    string `json:"SocketLabsAPIkey"`
 	SocketLabsWeight    string `json:"SocketLabsWeight"`
 	PostmarkServerToken string `json:"PostmarkServerToken"`
-	// PostmarkAPIURL      string `json:"PostmarkAPIURL"`
-	PostmarkWeight  string `json:"PostmarkWeight"`
-	SendgridAPIKey  string `json:"SendgridAPIKey"`
-	SendgridWeight  string `json:"SendgridWeight"`
-	SparkpostAPIKey string `json:"SparkpostAPIKey"`
-	SparkpostWeight string `json:"SparkpostWeight"`
+	PostmarkWeight      string `json:"PostmarkWeight"`
+	SendgridAPIKey      string `json:"SendgridAPIKey"`
+	SendgridWeight      string `json:"SendgridWeight"`
+	SparkpostAPIKey     string `json:"SparkpostAPIKey"`
+	SparkpostWeight     string `json:"SparkpostWeight"`
 }
 
 type StandardizedEvent struct {

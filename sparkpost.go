@@ -46,7 +46,7 @@ func SendEmailWithSparkPost(emailMessage EmailMessage) {
 		}
 		attachments[i] = sp.Attachment{
 			Filename: att.Name,
-			MIMEType: att.ContentType,
+			MIMEType: att.Type,
 			B64Data:  string(content),
 		}
 	}
