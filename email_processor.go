@@ -38,18 +38,31 @@ func ProcessEmailMessages(msg *sarama.ConsumerMessage) {
 		}
 	}
 
-	sender := SelectSender(socketLabsWeight, postmarkWeight, sendGridWeight, sparkPostWeight)
-	switch sender {
-	case "SendGrid":
-		SendEmailWithSendGrid(emailMessage)
-	case "SocketLabs":
-		SendEmailWithSocketLabs(emailMessage)
-	case "Postmark":
-		SendEmailWithPostmark(emailMessage)
-	case "SparkPost":
-		SendEmailWithSparkPost(emailMessage)
-	default:
-		log.Printf("No valid credentials found for any sender")
+	senderGroups := make(map[string][]Personalization)
+	for _, p := range emailMessage.Personalizations {
+		sender := SelectSender(
+			socketLabsWeight, postmarkWeight, sendGridWeight, sparkPostWeight,
+		)
+		senderGroups[sender] = append(senderGroups[sender], p)
+	}
+
+	// Send emails using each selected sender
+	for sender, personalizations := range senderGroups {
+		groupMessage := emailMessage
+		groupMessage.Personalizations = personalizations
+
+		switch sender {
+		case "SendGrid":
+			SendEmailWithSendGrid(groupMessage)
+		case "SocketLabs":
+			SendEmailWithSocketLabs(groupMessage)
+		case "Postmark":
+			SendEmailWithPostmark(groupMessage)
+		case "SparkPost":
+			SendEmailWithSparkPost(groupMessage)
+		default:
+			log.Printf("No valid credentials found for sender: %s", sender)
+		}
 	}
 }
 
