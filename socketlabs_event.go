@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"strconv"
 	"strings"
 	"time"
 
@@ -155,34 +154,34 @@ func generateMessageID(secretKey string, serverID int) string {
 	return strings.TrimRight(encoded, "=")
 }
 
-func decodeMessageID(messageID string) (string, int, int64, error) {
-	// Add back the padding if necessary
-	if len(messageID)%4 != 0 {
-		messageID += strings.Repeat("=", 4-len(messageID)%4)
-	}
+// func decodeMessageID(messageID string) (string, int, int64, error) {
+// 	// Add back the padding if necessary
+// 	if len(messageID)%4 != 0 {
+// 		messageID += strings.Repeat("=", 4-len(messageID)%4)
+// 	}
 
-	// Decode the base64 string
-	decoded, err := base64.URLEncoding.DecodeString(messageID)
-	if err != nil {
-		return "", 0, 0, err
-	}
+// 	// Decode the base64 string
+// 	decoded, err := base64.URLEncoding.DecodeString(messageID)
+// 	if err != nil {
+// 		return "", 0, 0, err
+// 	}
 
-	// Split the decoded string into its components
-	parts := strings.Split(string(decoded), ":")
-	if len(parts) != 3 {
-		return "", 0, 0, fmt.Errorf("invalid message ID format")
-	}
+// 	// Split the decoded string into its components
+// 	parts := strings.Split(string(decoded), ":")
+// 	if len(parts) != 3 {
+// 		return "", 0, 0, fmt.Errorf("invalid message ID format")
+// 	}
 
-	secretKey := parts[0]
-	serverID, err := strconv.Atoi(parts[1])
-	if err != nil {
-		return "", 0, 0, fmt.Errorf("invalid server ID in message ID")
-	}
+// 	secretKey := parts[0]
+// 	serverID, err := strconv.Atoi(parts[1])
+// 	if err != nil {
+// 		return "", 0, 0, fmt.Errorf("invalid server ID in message ID")
+// 	}
 
-	timestamp, err := strconv.ParseInt(parts[2], 10, 64)
-	if err != nil {
-		return "", 0, 0, fmt.Errorf("invalid timestamp in message ID")
-	}
+// 	timestamp, err := strconv.ParseInt(parts[2], 10, 64)
+// 	if err != nil {
+// 		return "", 0, 0, fmt.Errorf("invalid timestamp in message ID")
+// 	}
 
-	return secretKey, serverID, timestamp, nil
-}
+// 	return secretKey, serverID, timestamp, nil
+// }

@@ -15,31 +15,19 @@
           "order_id": "12345",
           "confirmations": "confirmation_001"
         }
-      },
-      {
-        "to": {
-          "name": "Jane Doe",
-          "email": "nzenitram@nzenitram.com"
-        },
-        "subject": "Personalized Email for Jane",
-        "substitutions": {
-          "name": "Jane",
-          "order_id": "67890",
-          "confirmations": "confirmation_002"
-        }
       }
     ],
-    "cc": ["nick1@nzenitram.com"],
-    "bcc": ["support@nzenitram.com"],
+    "cc": [],
+    "bcc": [],
     "subject": "Default Subject (if no personalization)",
     "content": [
       {
         "type": "text/plain",
-        "value": "Hello -name-,\n-confirmations-"
+        "value": "Hello -name-,\n -confirmations-"
       },
       {
         "type": "text/html",
-        "value": "<html><head></head><body><p>Hello -name-,<br>-confirmations-</p></body></html>"
+        "value": "<html><head></head><body><p>Hello -name-,<br> -confirmations-</p></body></html>"
       }
     ],
     "sections": {
