@@ -2,6 +2,8 @@ package main
 
 import (
 	"encoding/base64"
+	"encoding/json"
+	"fmt"
 	"log"
 	"regexp"
 	"strings"
@@ -26,24 +28,30 @@ func SendEmailWithSparkPost(emailMessage EmailMessage) {
 		log.Fatalf("SparkPost client init failed: %s\n", err)
 	}
 
-	// Prepare global substitution data (sections)
 	globalSubstitutionData := make(map[string]string)
 	for key, value := range emailMessage.Sections {
 		// Remove hyphens from keys
 		cleanKey := strings.Trim(key, "-")
-		globalSubstitutionData[cleanKey] = value
+
+		// Replace leading and trailing '-' with '{{' and '}}' in the value
+		re := regexp.MustCompile(`-(\w+)-`)
+		updatedValue := re.ReplaceAllString(value, "{{$1}}")
+
+		globalSubstitutionData[cleanKey] = updatedValue
 	}
 
 	// Prepare recipients and substitution data
 	recipients := make([]sp.Recipient, len(emailMessage.Personalizations))
 	for i, p := range emailMessage.Personalizations {
+
 		recipientSubstitutions := make(map[string]interface{})
 
 		for key, value := range p.Substitutions {
 			// Check if the value matches a key in globalSubstitutionData
 			if sectionContent, exists := globalSubstitutionData[value]; exists {
-				// Replace the value with the section content
-				recipientSubstitutions[key] = sectionContent
+				// Process placeholders in the section content using the recipient's substitutions
+				processedContent := processPlaceholders(sectionContent, p.Substitutions)
+				recipientSubstitutions[key] = processedContent
 			} else {
 				// If no match found, use the original value
 				recipientSubstitutions[key] = value
@@ -51,11 +59,11 @@ func SendEmailWithSparkPost(emailMessage EmailMessage) {
 		}
 
 		// Process placeholders in the substitution values
-		for key, value := range recipientSubstitutions {
-			if strValue, ok := value.(string); ok {
-				recipientSubstitutions[key] = processPlaceholders(strValue, p.Substitutions)
-			}
-		}
+		// for key, value := range recipientSubstitutions {
+		// 	if strValue, ok := value.(string); ok {
+		// 		recipientSubstitutions[key] = processPlaceholders(strValue, p.Substitutions)
+		// 	}
+		// }
 
 		recipients[i] = sp.Recipient{
 			Address: sp.Address{
@@ -93,10 +101,13 @@ func SendEmailWithSparkPost(emailMessage EmailMessage) {
 	htmlContent := ""
 	textContent := ""
 	for _, content := range emailMessage.Content {
+		// Use the first personalization's substitutions for processing placeholders
+		re := regexp.MustCompile(`-(\w+)-`)
+		updatedValue := re.ReplaceAllString(content.Value, "{{$1}}")
 		if content.Type == "text/html" {
-			htmlContent = content.Value
+			htmlContent = updatedValue
 		} else if content.Type == "text/plain" {
-			textContent = content.Value
+			textContent = updatedValue
 		}
 	}
 
@@ -114,6 +125,8 @@ func SendEmailWithSparkPost(emailMessage EmailMessage) {
 		SubstitutionData: globalSubstitutionData,
 	}
 
+	printSPMessageStructure(tx)
+
 	// Send the email
 	id, res, err := client.Send(tx)
 	if err != nil {
@@ -121,7 +134,7 @@ func SendEmailWithSparkPost(emailMessage EmailMessage) {
 		return
 	}
 
-	log.Printf("Email sent successfully. ID: %s, Response: %+v", id, res)
+	log.Printf("Email sent successfully. ID: %s, Response: %v", id, res)
 }
 
 func processPlaceholders(content string, substitutions map[string]string) string {
@@ -133,4 +146,12 @@ func processPlaceholders(content string, substitutions map[string]string) string
 		}
 		return match
 	})
+}
+
+func printSPMessageStructure(message *sp.Transmission) {
+	jsonData, err := json.MarshalIndent(message, "", "    ")
+	if err != nil {
+		log.Fatalf("Error marshaling message to JSON: %v", err)
+	}
+	fmt.Println(string(jsonData))
 }
