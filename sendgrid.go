@@ -6,12 +6,13 @@ import (
 	"log"
 	"strings"
 
+	"github.com/sendgrid/sendgrid-go"
 	"github.com/sendgrid/sendgrid-go/helpers/mail"
 )
 
 func SendEmailWithSendGrid(emailMessage EmailMessage) {
-	// apiKey := emailMessage.Credentials.SendgridAPIKey
-	// client := sendgrid.NewSendClient(apiKey)
+	apiKey := emailMessage.Credentials.SendgridAPIKey
+	client := sendgrid.NewSendClient(apiKey)
 
 	// Parse sections dynamically
 	parsedSections := parseSectionsDynamic(emailMessage.Sections)
@@ -87,13 +88,13 @@ func SendEmailWithSendGrid(emailMessage EmailMessage) {
 		// Add categories
 		message.Categories = emailMessage.Categories
 
-		// Send the email
-		// response, err := client.Send(message)
-		// if err != nil {
-		// 	log.Printf("Error sending email to %s: %v", p.To.Email, err)
-		// } else {
-		// 	log.Printf("Email sent to %s. Status: %d, Body: %s", p.To.Email, response.StatusCode, response.Body)
-		// }
+		// Send the emails
+		response, err := client.Send(message)
+		if err != nil {
+			log.Printf("Error sending email to %s: %v", p.To.Email, err)
+		} else {
+			log.Printf("Email sent to %s. Status: %d, Body: %s", p.To.Email, response.StatusCode, response.Body)
+		}
 	}
 }
 

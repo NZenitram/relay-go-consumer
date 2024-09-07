@@ -43,8 +43,8 @@
       }
     ],
     "sections": {
-      "-confirmation_001-": "Thanks for choosing our service. This email is to confirm that we have processed your order -order_id-.",
-      "-confirmation_002-": "Thanks for your order. We've processed your order -order_id-. You can download your invoice as a PDF for your records."
+      "confirmation_001": "Thanks for choosing our service. This email is to confirm that we have processed your order -order_id-.",
+      "confirmation_002": "Thanks for your order. We've processed your order -order_id-. You can download your invoice as a PDF for your records."
     },
     "attachments": [
       {
