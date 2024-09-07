@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"log"
 	"strings"
@@ -17,7 +18,7 @@ func SendEmailWithSendGrid(emailMessage EmailMessage) {
 	// Parse sections dynamically
 	parsedSections := parseSectionsDynamic(emailMessage.Sections)
 	// Transform substitutions
-	transformedPersonalizations := transformSubstitutions(emailMessage.Personalizations, parsedSections)
+	transformedPersonalizations := transformSubstitutionsDynamic(emailMessage.Personalizations, parsedSections)
 
 	for _, p := range transformedPersonalizations {
 		message := mail.NewV3Mail()
@@ -88,6 +89,7 @@ func SendEmailWithSendGrid(emailMessage EmailMessage) {
 		// Add categories
 		message.Categories = emailMessage.Categories
 
+		printMessageStructure(message)
 		// Send the emails
 		response, err := client.Send(message)
 		if err != nil {
@@ -98,26 +100,12 @@ func SendEmailWithSendGrid(emailMessage EmailMessage) {
 	}
 }
 
-func transformSubstitutions(personalizations []Personalization, sections map[string]string) []Personalization {
-	for i, personalization := range personalizations {
-		newSubstitutions := make(map[string]string)
-
-		for key, value := range personalization.Substitutions {
-			newKey := fmt.Sprintf("-%s-", key)
-
-			// Check if the value corresponds to a section key
-			sectionKey := fmt.Sprintf("-%s-", value)
-			if _, exists := sections[sectionKey]; exists {
-				newSubstitutions[newKey] = sectionKey
-			} else {
-				newSubstitutions[newKey] = value
-			}
-		}
-
-		personalizations[i].Substitutions = newSubstitutions
+func printMessageStructure(message *mail.SGMailV3) {
+	jsonData, err := json.MarshalIndent(message, "", "    ")
+	if err != nil {
+		log.Fatalf("Error marshaling message to JSON: %v", err)
 	}
-
-	return personalizations
+	fmt.Println(string(jsonData))
 }
 
 func transformSubstitutionsDynamic(personalizations []Personalization, sections map[string]string) []Personalization {
@@ -138,7 +126,7 @@ func transformSubstitutionsDynamic(personalizations []Personalization, sections 
 			handlebarSectionKey := fmt.Sprintf("{{%s}}", value)
 			if _, exists := sections[hyphenSectionKey]; exists {
 				newSubstitutions[hyphenKey] = hyphenSectionKey
-				newSubstitutions[handlebarKey] = hyphenSectionKey
+				// newSubstitutions[handlebarKey] = hyphenSectionKey
 			} else if _, exists := sections[handlebarSectionKey]; exists {
 				newSubstitutions[hyphenKey] = handlebarSectionKey
 				newSubstitutions[handlebarKey] = handlebarSectionKey
@@ -170,21 +158,4 @@ func parseSectionsDynamic(sections map[string]string) map[string]string {
 		}
 	}
 	return newSections
-}
-
-func processEmailContentDynamic(content []Content, substitutions map[string]string, sections map[string]string) []Content {
-	processedContent := make([]Content, len(content))
-	for i, item := range content {
-		value := item.Value
-		// Replace both hyphen and handlebars placeholders in value using substitutions
-		for key, replacement := range substitutions {
-			value = strings.ReplaceAll(value, key, replacement)
-		}
-		// Replace section content
-		for key, sectionContent := range sections {
-			value = strings.ReplaceAll(value, key, sectionContent)
-		}
-		processedContent[i] = Content{Type: item.Type, Value: value}
-	}
-	return processedContent
 }
