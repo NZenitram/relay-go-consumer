@@ -11,7 +11,6 @@ import (
 
 	"github.com/IBM/sarama"
 	"github.com/joho/godotenv"
-	"golang.org/x/exp/rand"
 )
 
 func main() {
@@ -52,53 +51,50 @@ func main() {
 		// Create new consumer configuration
 		config := sarama.NewConfig()
 		config.Consumer.Offsets.Initial = offsetResetConfig
+		config.Consumer.Offsets.AutoCommit.Enable = true
+		config.Consumer.Offsets.AutoCommit.Interval = time.Second * 5
+		config.Consumer.Group.Rebalance.Strategy = sarama.NewBalanceStrategyRoundRobin()
 
-		// Create new consumer
-		consumer, err := sarama.NewConsumer(kafkaBrokers, nil)
-		if err != nil {
-			log.Fatalf("Failed to start Kafka consumer: %v", err)
-		}
-		defer consumer.Close()
-
-		// Consume messages from the 'emails' topic
-		consumeTopic(consumer, emailTopic, config, ProcessEmailMessages)
-
-		// Consume messages from the 'webhook-events-sendgrid' topic
-		consumeTopic(consumer, sendgridWebhookTopic, config, ProcessSendgridEvents)
-
-		// Consume messages from the 'webhook-events-postmark' topic
-		consumeTopic(consumer, postmarkWebhookTopic, config, ProcessPostmarkEvents)
-
-		// Consume messages from the 'webhook-events-socketlabs' topic
-		consumeTopic(consumer, socketlabsWebhookTopic, config, ProcessSocketLabsEvents)
-
-		// Consume messages from the 'webhook-events-sparkpost' topic
-		consumeTopic(consumer, sparkpostWebhookTopic, config, ProcessSparkPostEvents)
+		// Consume messages from each topic with a unique consumer group
+		consumeTopic(kafkaBrokers, emailTopic, "email-group", config, ProcessEmailMessages)
+		consumeTopic(kafkaBrokers, sendgridWebhookTopic, "sendgrid-group", config, ProcessSendgridEvents)
+		consumeTopic(kafkaBrokers, postmarkWebhookTopic, "postmark-group", config, ProcessPostmarkEvents)
+		consumeTopic(kafkaBrokers, socketlabsWebhookTopic, "socketlabs-group", config, ProcessSocketLabsEvents)
+		consumeTopic(kafkaBrokers, sparkpostWebhookTopic, "sparkpost-group", config, ProcessSparkPostEvents)
 
 		// Wait forever
 		<-context.Background().Done()
 	}
 }
 
-func consumeTopic(consumer sarama.Consumer, topic string, config *sarama.Config, processFunc func(*sarama.ConsumerMessage)) {
-	partitionList, err := consumer.Partitions(topic)
+func consumeTopic(brokers []string, topic string, groupID string, config *sarama.Config, processFunc func(*sarama.ConsumerMessage)) {
+	consumer, err := sarama.NewConsumerGroup(brokers, groupID, config)
 	if err != nil {
-		log.Fatalf("Failed to get the list of partitions for topic %s: %v", topic, err)
+		log.Fatalf("Error creating consumer group client: %v", err)
 	}
 
-	rand.Seed(uint64(time.Now().UnixNano())) // Seed the random number generator
-	for _, partition := range partitionList {
-		pc, err := consumer.ConsumePartition(topic, partition, config.Consumer.Offsets.Initial)
-		// pc, err := consumer.ConsumePartition(topic, partition, 10)
-		if err != nil {
-			log.Fatalf("Failed to start consumer for partition %d on topic %s: %v", partition, topic, err)
-		}
-
-		go func(pc sarama.PartitionConsumer) {
-			defer pc.Close() // Ensure the partition consumer is closed
-			for msg := range pc.Messages() {
-				processFunc(msg)
+	go func() {
+		defer consumer.Close()
+		for {
+			if err := consumer.Consume(context.Background(), []string{topic}, &consumerGroupHandler{processFunc: processFunc}); err != nil {
+				log.Printf("Error from consumer: %v", err)
 			}
-		}(pc) // Consume messages concurrently
+		}
+	}()
+
+	log.Printf("Consumer group %s started for topic %s", groupID, topic)
+}
+
+type consumerGroupHandler struct {
+	processFunc func(*sarama.ConsumerMessage)
+}
+
+func (h *consumerGroupHandler) Setup(_ sarama.ConsumerGroupSession) error   { return nil }
+func (h *consumerGroupHandler) Cleanup(_ sarama.ConsumerGroupSession) error { return nil }
+func (h *consumerGroupHandler) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
+	for message := range claim.Messages() {
+		h.processFunc(message)
+		session.MarkMessage(message, "")
 	}
+	return nil
 }
