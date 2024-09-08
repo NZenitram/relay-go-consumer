@@ -121,51 +121,6 @@ func mapEmailMessageToPostmark(emailMessage EmailMessage) []PostMarkMessage {
 	return postMarkMessages
 }
 
-// func processContent(content []Content, substitutions map[string]string, sections map[string]string) []Content {
-// 	processedContent := make([]Content, len(content))
-// 	for i, item := range content {
-// 		value := item.Value
-
-// 		// Process the content outside of <style> tags
-// 		re := regexp.MustCompile(`(?s)(<style.*?</style>)|(.*?)`)
-// 		value = re.ReplaceAllStringFunc(value, func(match string) string {
-// 			if strings.HasPrefix(match, "<style") {
-// 				return match // Don't process content within <style> tags
-// 			}
-// 			return processText(match, substitutions, sections)
-// 		})
-
-// 		processedContent[i] = Content{Type: item.Type, Value: value}
-// 	}
-// 	return processedContent
-// }
-
-// func processText(text string, substitutions map[string]string, sections map[string]string) string {
-// 	// Process sections first
-// 	for key, sectionContent := range sections {
-// 		re := regexp.MustCompile(`(\()?(-` + regexp.QuoteMeta(key) + `-)(\))?|\{\{` + regexp.QuoteMeta(key) + `\}\}`)
-// 		text = re.ReplaceAllStringFunc(text, func(match string) string {
-// 			if strings.HasPrefix(match, "(") && strings.HasSuffix(match, ")") {
-// 				return "(" + sectionContent + ")"
-// 			}
-// 			return sectionContent
-// 		})
-// 	}
-
-// 	// Then process substitutions
-// 	for key, subValue := range substitutions {
-// 		re := regexp.MustCompile(`(\()?(-` + regexp.QuoteMeta(key) + `-)(\))?|\{\{` + regexp.QuoteMeta(key) + `\}\}`)
-// 		text = re.ReplaceAllStringFunc(text, func(match string) string {
-// 			if strings.HasPrefix(match, "(") && strings.HasSuffix(match, ")") {
-// 				return "(" + subValue + ")"
-// 			}
-// 			return subValue
-// 		})
-// 	}
-
-// 	return text
-// }
-
 func processContent(content []Content, substitutions map[string]string, sections map[string]string) []Content {
 	processedContent := make([]Content, len(content))
 	for i, item := range content {
