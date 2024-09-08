@@ -150,6 +150,7 @@ type Attachment struct {
 	Filename    string `json:"filename"`
 	Name        string `json:"name"`
 	Type        string `json:"type"`
+	ContentType string `json:"ContentType,omitempty"`
 }
 
 type EmailMessage struct {

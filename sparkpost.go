@@ -125,8 +125,6 @@ func SendEmailWithSparkPost(emailMessage EmailMessage) {
 		SubstitutionData: globalSubstitutionData,
 	}
 
-	printSPMessageStructure(tx)
-
 	// Send the email
 	id, res, err := client.Send(tx)
 	if err != nil {
