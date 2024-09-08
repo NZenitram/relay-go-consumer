@@ -1,18 +1,19 @@
-Certainly! I'll organize the README in a more structured and coherent manner, adding details where appropriate. Here's a suggested structure:
+Certainly! I'll update the README to include information about using an authorization header with the user's API key. Here's the revised structure with the new section added:
 
 # Email Sending Service Documentation
 
 ## Table of Contents
 1. [Introduction](#introduction)
 2. [API Endpoint](#api-endpoint)
-3. [JSON Payload Structure](#json-payload-structure)
-4. [Personalization and Content](#personalization-and-content)
-5. [Attachments](#attachments)
-6. [Custom Headers and Tracking](#custom-headers-and-tracking)
-7. [Email Service Provider Credentials](#email-service-provider-credentials)
-8. [Example CURL Requests](#example-curl-requests)
-9. [Webhook Events](#webhook-events)
-10. [Troubleshooting](#troubleshooting)
+3. [Authentication](#authentication)
+4. [JSON Payload Structure](#json-payload-structure)
+5. [Personalization and Content](#personalization-and-content)
+6. [Attachments](#attachments)
+7. [Custom Headers and Tracking](#custom-headers-and-tracking)
+8. [Email Service Provider Credentials](#email-service-provider-credentials)
+9. [Example CURL Requests](#example-curl-requests)
+10. [Webhook Events](#webhook-events)
+11. [Troubleshooting](#troubleshooting)
 
 ## Introduction
 This document outlines the structure and usage of our email sending service, which supports multiple email service providers and offers personalization features.
@@ -23,16 +24,26 @@ The email sending endpoint is accessible at:
 https://horribly-striking-joey.ngrok-free.app/emails
 ```
 
+## Authentication
+To authorize email sends, you must include your API key in the Authorization header of your HTTP request.
+
+Header format:
+```
+Authorization: Bearer YOUR_API_KEY
+```
+
+Replace `YOUR_API_KEY` with the actual API key provided to you.
+
 ## JSON Payload Structure
 The API accepts a JSON payload with the following main sections:
 - `from`: Sender information
 - `personalizations`: Recipient-specific information and substitutions
 - `content`: Email body in plain text and HTML formats
+- `sections`: Reusable content sections
 - `attachments`: File attachments
 - `headers`: Custom email headers
 - `custom_args`: Additional sending options
 - `categories`: Email categorization
-- `credentials`: Authentication for different email service providers
 
 ## Personalization and Content
 ### Personalizations
@@ -46,26 +57,36 @@ The `personalizations` array allows for recipient-specific customization:
     },
     "subject": "Personalized Subject",
     "substitutions": {
-      "-name-": "Recipient Name",
-      "-order_id-": "12345"
+      "name": "Recipient Name",
+      "order_id": "12345",
+      "confirmations": "confirmation_001"
     }
   }
 ]
 ```
 
 ### Content
-Email content can be provided in both plain text and HTML formats:
+Email content can be provided in both plain text and HTML formats. Variables can be included using either `-var-` or `{{var}}` syntax:
 ```json
 "content": [
   {
     "type": "text/plain",
-    "value": "Hello -name-,\n-confirmations-"
+    "value": "Hello {{name}},\n{{confirmations}}"
   },
   {
     "type": "text/html",
-    "value": "<html><body><p>Hello -name-,<br>-confirmations-</p></body></html>"
+    "value": "<html><body><p>Hello {{name}},<br>{{confirmations}}</p></body></html>"
   }
 ]
+```
+
+### Sections
+Reusable content sections can be defined and referenced in the email content:
+```json
+"sections": {
+  "confirmation_001": "Thanks for choosing our service. This email is to confirm that we have processed your order {{order_id}}.",
+  "confirmation_002": "Thanks for your order. We've processed your order {{order_id}}. You can download your invoice as a PDF for your records."
+}
 ```
 
 ## Attachments
@@ -97,26 +118,14 @@ Custom headers and tracking options can be specified:
 ```
 
 ## Email Service Provider Credentials
-The API supports multiple email service providers. Credentials and weights for each provider can be specified:
-```json
-"credentials": {
-  "SocketLabsServerID": "12345",
-  "SocketLabsAPIkey": "your-socketlabs-api-key",
-  "SocketLabsWeight": "25",
-  "PostmarkServerToken": "your-postmark-server-token",
-  "PostmarkWeight": "25",
-  "SendgridAPIKey": "your-sendgrid-api-key",
-  "SendgridWeight": "25",
-  "SparkpostAPIKey": "your-sparkpost-api-key",
-  "SparkpostWeight": "25"
-}
-```
+The API supports multiple email service providers. Credentials and weights for each provider can be specified in the request payload or managed server-side.
 
 ## Example CURL Requests
 Here's an example CURL request to send an email:
 ```bash
 curl -X POST https://horribly-striking-joey.ngrok-free.app/emails \
 -H "Content-Type: application/json" \
+-H "Authorization: Bearer YOUR_API_KEY" \
 -d '{
   "from": {
     "name": "Sender Name",
@@ -130,21 +139,25 @@ curl -X POST https://horribly-striking-joey.ngrok-free.app/emails \
       },
       "subject": "Personalized Subject",
       "substitutions": {
-        "-name-": "Recipient Name",
-        "-order_id-": "12345"
+        "name": "Recipient Name",
+        "order_id": "12345",
+        "confirmations": "confirmation_001"
       }
     }
   ],
   "content": [
     {
       "type": "text/plain",
-      "value": "Hello -name-,\nYour order -order_id- has been processed."
+      "value": "Hello {{name}},\n{{confirmations}}"
     },
     {
       "type": "text/html",
-      "value": "<html><body><p>Hello -name-,<br>Your order -order_id- has been processed.</p></body></html>"
+      "value": "<html><body><p>Hello {{name}},<br>{{confirmations}}</p></body></html>"
     }
   ],
+  "sections": {
+    "confirmation_001": "Thanks for choosing our service. This email is to confirm that we have processed your order {{order_id}}."
+  },
   "attachments": [
     {
       "filename": "receipt.pdf",
@@ -159,11 +172,7 @@ curl -X POST https://horribly-striking-joey.ngrok-free.app/emails \
     "TrackOpens": "true",
     "TrackLinks": "HtmlOnly"
   },
-  "categories": ["order", "confirmation"],
-  "credentials": {
-    "SendgridAPIKey": "your-sendgrid-api-key",
-    "SendgridWeight": "100"
-  }
+  "categories": ["order", "confirmation"]
 }'
 ```
 
@@ -171,11 +180,4 @@ curl -X POST https://horribly-striking-joey.ngrok-free.app/emails \
 The service supports webhook events for tracking email status. Webhook endpoints for different providers are available for processing these events.
 
 ## Troubleshooting
-### Postmark API Error Code 412
-This error occurs when your Postmark account is pending approval. During this period, recipient email addresses must share the same domain as the 'From' address.
-
-Resolution:
-1. Use recipient addresses with the same domain as the 'From' address.
-2. Contact Postmark support for account approval to lift this restriction.
-
-For any other issues, please refer to the specific email service provider's documentation or contact our support team.
+For any issues, please refer to the specific email service provider's documentation or contact our support team.
