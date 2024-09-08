@@ -170,28 +170,37 @@ func processContent(content []Content, substitutions map[string]string, sections
 	processedContent := make([]Content, len(content))
 	for i, item := range content {
 		value := item.Value
-		for key, subValue := range substitutions {
-			handlebarPlaceholder := fmt.Sprintf("{{%s}}", key)
-			hyphenPlaceholder := fmt.Sprintf("-%s-", key)
 
-			if sectionContent, exists := sections[subValue]; exists {
-				// Replace placeholder with section content
-				value = strings.ReplaceAll(value, handlebarPlaceholder, sectionContent)
-				value = strings.ReplaceAll(value, hyphenPlaceholder, sectionContent)
-
-				// Now replace any placeholders in the section content
-				for subKey, subSubValue := range substitutions {
-					subHandlebarPlaceholder := fmt.Sprintf("{{%s}}", subKey)
-					subHyphenPlaceholder := fmt.Sprintf("-%s-", subKey)
-					value = strings.ReplaceAll(value, subHandlebarPlaceholder, subSubValue)
-					value = strings.ReplaceAll(value, subHyphenPlaceholder, subSubValue)
-				}
-			} else {
-				// Direct substitution
-				value = strings.ReplaceAll(value, handlebarPlaceholder, subValue)
-				value = strings.ReplaceAll(value, hyphenPlaceholder, subValue)
-			}
+		// First pass: Replace section placeholders
+		for sectionKey, sectionContent := range sections {
+			handlebarPlaceholder := fmt.Sprintf("{{%s}}", sectionKey)
+			hyphenPlaceholder := fmt.Sprintf("-%s-", sectionKey)
+			value = strings.ReplaceAll(value, handlebarPlaceholder, sectionContent)
+			value = strings.ReplaceAll(value, hyphenPlaceholder, sectionContent)
 		}
+
+		// Second pass: Replace substitutions
+		for subKey, subValue := range substitutions {
+			handlebarPlaceholder := fmt.Sprintf("{{%s}}", subKey)
+			hyphenPlaceholder := fmt.Sprintf("-%s-", subKey)
+
+			replacementValue := subValue
+			if sectionContent, exists := sections[subValue]; exists {
+				replacementValue = sectionContent
+			}
+
+			value = strings.ReplaceAll(value, handlebarPlaceholder, replacementValue)
+			value = strings.ReplaceAll(value, hyphenPlaceholder, replacementValue)
+		}
+
+		// Third pass: Replace any remaining placeholders in the content
+		for subKey, subValue := range substitutions {
+			handlebarPlaceholder := fmt.Sprintf("{{%s}}", subKey)
+			hyphenPlaceholder := fmt.Sprintf("-%s-", subKey)
+			value = strings.ReplaceAll(value, handlebarPlaceholder, subValue)
+			value = strings.ReplaceAll(value, hyphenPlaceholder, subValue)
+		}
+
 		processedContent[i] = Content{Type: item.Type, Value: value}
 	}
 	return processedContent
