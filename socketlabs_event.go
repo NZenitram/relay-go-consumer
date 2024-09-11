@@ -142,7 +142,7 @@ func standardizeSocketLabsEvent(event SocketLabsBaseEvent, headers SocketlabsWeb
 }
 func generateMessageID(secretKey string, serverID int) string {
 	// Use the current timestamp to ensure uniqueness
-	timestamp := time.Now().UnixNano()
+	timestamp := time.Now().UTC().UnixNano()
 
 	// Create a unique identifier based on SecretKey, ServerID, and timestamp
 	uniqueString := fmt.Sprintf("%s:%d:%d", secretKey, serverID, timestamp)
