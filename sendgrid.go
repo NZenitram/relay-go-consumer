@@ -89,7 +89,7 @@ func SendEmailWithSendGrid(emailMessage EmailMessage) {
 		// Add categories
 		message.Categories = emailMessage.Categories
 
-		printMessageStructure(message)
+		// printMessageStructure(message)
 		// Send the emails
 		response, err := client.Send(message)
 		if err != nil {
