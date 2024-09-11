@@ -18,10 +18,7 @@
 # vendor/
 database/dump.sql*
 database/dump.sql.zip
-handlebars-payload.json
-hyphens-payload.json
-hyphens-complex-payload.json
-handlebars-complex-payload.json
+samples/
 
 
 # Go workspace file
