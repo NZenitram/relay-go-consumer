@@ -23,10 +23,10 @@ func SendEmailWithSocketLabs(emailMessage EmailMessage) error {
 	preparedMessages := prepareSocketLabsMessages(emailMessage)
 
 	// Print prepared messages for review
-	printPreparedMessages(preparedMessages)
+	// printPreparedMessages(preparedMessages)
 
 	// Optional: Add a prompt to continue or abort
-	fmt.Print("Press Enter to continue sending, or Ctrl+C to abort...")
+	// fmt.Print("Press Enter to continue sending, or Ctrl+C to abort...")
 	// fmt.Scanln() // Wait for user input
 
 	for _, basic := range preparedMessages {

@@ -1,19 +1,24 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
+	"fmt"
 	"log"
 	"math/rand"
 	"regexp"
-	"strconv"
+	"relay-go-consumer/database"
 	"strings"
+	"time"
 
 	"github.com/IBM/sarama"
 )
 
 type KafkaMessage struct {
-	Headers map[string][]string `json:"headers"`
-	Body    EmailMessage        `json:"body"`
+	MessageID string              `json:"MessageID"`
+	UserID    int                 `json:"UserID"`
+	Headers   map[string][]string `json:"headers"`
+	Body      EmailMessage        `json:"body"`
 }
 
 func ProcessEmailMessages(msg *sarama.ConsumerMessage) {
@@ -23,9 +28,26 @@ func ProcessEmailMessages(msg *sarama.ConsumerMessage) {
 		log.Fatalf("Failed to parse JSON: %v", err)
 	}
 
+	// Fetch ESP credentials from the database
+	credentials, credentialsErr := fetchESPCredentials(kafkaMessage.UserID)
+	if credentialsErr != nil {
+		fmt.Printf("failed to fetch ESP credentials: %v", credentialsErr)
+	}
+
+	// Initialize weights for active providers
+
+	database.InitDB()
+	db := database.GetDB()
+	defer database.CloseDB()
+
 	emailMessage := kafkaMessage.Body
-	credentials := emailMessage.Credentials
-	socketLabsWeight, postmarkWeight, sendGridWeight, sparkPostWeight := calculateWeights(credentials)
+	emailMessage.Credentials = credentials
+	// Calculate weights based on event data
+	weights, err := calculateWeights(db, kafkaMessage.UserID, credentials)
+	if err != nil {
+		fmt.Printf("failed to calculate weights: %v", err)
+		return
+	}
 
 	// If there are no personalizations, create one for each recipient
 	if len(emailMessage.Personalizations) == 0 {
@@ -40,9 +62,7 @@ func ProcessEmailMessages(msg *sarama.ConsumerMessage) {
 
 	senderGroups := make(map[string][]Personalization)
 	for _, p := range emailMessage.Personalizations {
-		sender := SelectSender(
-			socketLabsWeight, postmarkWeight, sendGridWeight, sparkPostWeight,
-		)
+		sender := SelectSender(weights)
 		senderGroups[sender] = append(senderGroups[sender], p)
 	}
 
@@ -66,45 +86,42 @@ func ProcessEmailMessages(msg *sarama.ConsumerMessage) {
 	}
 }
 
-func SelectSender(socketLabsWeight, postmarkWeight, sendGridWeight, sparkPostWeight int) string {
-	totalWeight := socketLabsWeight + postmarkWeight + sendGridWeight + sparkPostWeight
+func SelectSender(weights map[string]int) string {
+	totalWeight := 0
+	for _, weight := range weights {
+		totalWeight += weight
+	}
+
 	if totalWeight == 0 {
 		return ""
 	}
 
 	randomValue := rand.Intn(totalWeight)
-	if randomValue < socketLabsWeight {
-		return "SocketLabs"
-	} else if randomValue < socketLabsWeight+postmarkWeight {
-		return "Postmark"
-	} else if randomValue < socketLabsWeight+postmarkWeight+sendGridWeight {
-		return "SendGrid"
+	cumulativeWeight := 0
+
+	for provider, weight := range weights {
+		cumulativeWeight += weight
+		if randomValue < cumulativeWeight {
+			return provider
+		}
 	}
-	return "SparkPost"
+
+	return "" // This should never happen if weights are calculated correctly
 }
 
-func calculateWeights(credentials Credentials) (int, int, int, int) {
-	// Parse weights, default to 0 if not present
-	socketLabsWeight, _ := strconv.Atoi(credentials.SocketLabsWeight)
-	postmarkWeight, _ := strconv.Atoi(credentials.PostmarkWeight)
-	sendGridWeight, _ := strconv.Atoi(credentials.SendgridWeight)
-	sparkPostWeight, _ := strconv.Atoi(credentials.SparkpostWeight)
-
-	// Check for available credentials and adjust weights accordingly
-	if credentials.SocketLabsServerID == "" || credentials.SocketLabsAPIKey == "" {
-		socketLabsWeight = 0
+func isValidProvider(provider string, credentials Credentials) bool {
+	switch provider {
+	case "SocketLabs":
+		return credentials.SocketLabsServerID != "" && credentials.SocketLabsAPIKey != ""
+	case "Postmark":
+		return credentials.PostmarkServerToken != ""
+	case "SendGrid":
+		return credentials.SendgridAPIKey != ""
+	case "SparkPost":
+		return credentials.SparkpostAPIKey != ""
+	default:
+		return false
 	}
-	if credentials.PostmarkServerToken == "" {
-		postmarkWeight = 0
-	}
-	if credentials.SendgridAPIKey == "" {
-		sendGridWeight = 0
-	}
-	if credentials.SparkpostAPIKey == "" {
-		sparkPostWeight = 0
-	}
-
-	return socketLabsWeight, postmarkWeight, sendGridWeight, sparkPostWeight
 }
 
 // Custom unmarshaling logic for EmailAddress
@@ -219,4 +236,220 @@ type StandardizedEvent struct {
 	Dropped          bool
 	DroppedTime      *int64
 	DroppedReason    string
+}
+
+type ESPCredential struct {
+	ProviderName             string
+	SendingDomains           []string
+	SendgridVerificationKey  string
+	SparkpostWebhookUser     string
+	SparkpostWebhookPassword string
+	SocketlabsSecretKey      string
+	PostmarkWebhookUser      string
+	PostmarkWebhookPassword  string
+	SocketlabsServerID       string
+}
+
+func fetchESPCredentials(userID int) (Credentials, error) {
+	database.InitDB()
+	db := database.GetDB()
+
+	query := `
+        SELECT provider_name, 
+               socketlabs_server_id, socketlabs_secret_key,
+               postmark_webhook_password,
+               sendgrid_api_key,
+               sparkpost_webhook_password,
+			   weight
+        FROM email_service_providers
+        WHERE user_id = $1
+    `
+	rows, err := db.Query(query, userID)
+	if err != nil {
+		return Credentials{}, fmt.Errorf("failed to query ESP credentials: %v", err)
+	}
+	defer rows.Close()
+
+	creds := Credentials{}
+	rowCount := 0
+
+	for rows.Next() {
+		rowCount++
+		var (
+			providerName, socketlabsServerID, socketlabsSecretKey,
+			postmarkWebhookPassword, sendgridAPIKey,
+			sparkpostWebhookPassword, senderWeight sql.NullString
+		)
+
+		err := rows.Scan(
+			&providerName,
+			&socketlabsServerID, &socketlabsSecretKey,
+			&postmarkWebhookPassword,
+			&sendgridAPIKey,
+			&sparkpostWebhookPassword,
+			&senderWeight,
+		)
+		if err != nil {
+			return Credentials{}, fmt.Errorf("failed to scan ESP credential: %v", err)
+		}
+
+		log.Printf("Processing provider: %s", providerName.String)
+
+		switch providerName.String {
+		case "socketLabs":
+			if socketlabsServerID.Valid && socketlabsSecretKey.Valid {
+				creds.SocketLabsServerID = socketlabsServerID.String
+				creds.SocketLabsAPIKey = socketlabsSecretKey.String
+				creds.SocketLabsWeight = senderWeight.String
+				log.Printf("Set SocketLabs credentials")
+			}
+		case "postmark":
+			if postmarkWebhookPassword.Valid {
+				creds.PostmarkServerToken = postmarkWebhookPassword.String
+				creds.PostmarkWeight = senderWeight.String
+				log.Printf("Set Postmark credentials")
+			}
+		case "sendgrid":
+			if sendgridAPIKey.Valid {
+				creds.SendgridAPIKey = sendgridAPIKey.String
+				creds.SendgridWeight = senderWeight.String
+				log.Printf("Set SendGrid credentials")
+			}
+		case "sparkpost":
+			if sparkpostWebhookPassword.Valid {
+				creds.SparkpostAPIKey = sparkpostWebhookPassword.String
+				creds.SparkpostWeight = senderWeight.String
+				log.Printf("Set SparkPost credentials")
+			}
+		default:
+			log.Printf("Unknown provider: %s", providerName.String)
+		}
+	}
+
+	if err := rows.Err(); err != nil {
+		return Credentials{}, fmt.Errorf("error iterating over rows: %v", err)
+	}
+
+	log.Printf("Processed %d rows", rowCount)
+	log.Printf("Resulting credentials: %+v", creds)
+
+	if rowCount == 0 {
+		return Credentials{}, fmt.Errorf("no ESP credentials found for user ID %d", userID)
+	}
+
+	return creds, nil
+}
+
+type ProviderStats struct {
+	Name             string
+	TotalEvents      int
+	SuccessfulEvents int
+	BounceEvents     int
+}
+
+func getProviderStats(db *sql.DB, userID int, daysBack int) ([]ProviderStats, error) {
+	query := `
+    SELECT 
+        esp.provider_name,
+        COUNT(*) as total_events,
+        SUM(CASE WHEN e.delivered THEN 1 ELSE 0 END) as successful_events,
+        SUM(CASE WHEN e.bounce THEN 1 ELSE 0 END) as bounce_events
+    FROM 
+        events e
+    JOIN 
+        message_user_associations mua ON e.message_id = mua.message_id
+    JOIN 
+        email_service_providers esp ON mua.esp_id = esp.esp_id
+    WHERE 
+        esp.user_id = $1
+        AND e.processed_time >= $2
+    GROUP BY 
+        esp.provider_name
+    `
+
+	startDate := time.Now().AddDate(0, 0, -daysBack)
+	rows, err := db.Query(query, userID, startDate.Unix())
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var stats []ProviderStats
+	for rows.Next() {
+		var s ProviderStats
+		if err := rows.Scan(&s.Name, &s.TotalEvents, &s.SuccessfulEvents, &s.BounceEvents); err != nil {
+			return nil, err
+		}
+		stats = append(stats, s)
+	}
+
+	return stats, nil
+}
+
+// calculateWeights determines the distribution of emails across different ESP providers
+// based on their performance over the last 30 days. It considers successful deliveries
+// and bounces, with a higher penalty for bounces. The function:
+//
+// 1. Fetches event statistics for each provider from the database.
+// 2. Calculates a score for each provider based on success rate and bounce rate.
+// 3. Normalizes these scores into weights that sum to 10,000, providing fine-grained control.
+// 4. Adjusts weights to zero for providers with invalid or missing credentials.
+// 5. If no provider has a positive score, it distributes weight equally among valid providers.
+//
+// The resulting weights determine the proportion of emails to be sent through each provider,
+// favoring those with better delivery performance while maintaining some traffic to all
+// valid providers. This approach allows for dynamic load balancing and optimization of
+// email deliverability across multiple ESPs.
+func calculateWeights(db *sql.DB, userID int, credentials Credentials) (map[string]int, error) {
+	stats, err := getProviderStats(db, userID, 30) // Get stats for last 30 days
+	if err != nil {
+		return nil, err
+	}
+
+	weights := make(map[string]int)
+	totalScore := 0.0
+
+	for _, s := range stats {
+		if s.TotalEvents > 0 {
+			successRate := float64(s.SuccessfulEvents) / float64(s.TotalEvents)
+			bounceRate := float64(s.BounceEvents) / float64(s.TotalEvents)
+
+			score := successRate - (2 * bounceRate)
+			if score < 0 {
+				score = 0
+			}
+
+			totalScore += score
+			weights[s.Name] = int(score * 10000)
+		}
+	}
+
+	if totalScore > 0 {
+		for provider := range weights {
+			// This is the key change: divide by totalScore * 10000 instead of just totalScore
+			normalizedWeight := int(float64(weights[provider]) / (totalScore * 10000) * 10000)
+			weights[provider] = normalizedWeight
+		}
+	} else {
+		// Assign equal weight to valid providers if totalScore is 0
+		validProviders := 0
+		for provider := range weights {
+			if isValidProvider(provider, credentials) {
+				validProviders++
+			}
+		}
+
+		if validProviders > 0 {
+			equalWeight := 10000 / validProviders
+			for provider := range weights {
+				if isValidProvider(provider, credentials) {
+					weights[provider] = equalWeight
+				} else {
+					weights[provider] = 0
+				}
+			}
+		}
+	}
+
+	return weights, nil
 }
