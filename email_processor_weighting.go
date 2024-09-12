@@ -150,24 +150,26 @@ func isValidProvider(provider string, credentials Credentials) bool {
 
 func calculateRecentWeights(db *sql.DB, batchID int, startTime time.Time) (map[string]int, error) {
 	query := `
-    SELECT 
-        e.provider,
-        COUNT(*) as total_events,
-        SUM(CASE WHEN e.delivered THEN 1 ELSE 0 END) as delivered_events,
-        SUM(CASE WHEN e.bounce THEN 1 ELSE 0 END) as bounce_events,
-        SUM(CASE WHEN e.open THEN 1 ELSE 0 END) as open_events,
-        SUM(CASE WHEN e.dropped AND e.dropped_reason LIKE '%spam%' THEN 1 ELSE 0 END) as spam_events
-    FROM 
-        events e
-    JOIN 
-        message_user_associations mua ON e.message_id = mua.message_id
-    WHERE 
-        mua.batch_id = $1 AND e.processed_time >= $2
-    GROUP BY 
-        e.provider
+		SELECT 
+			e.provider,
+			COUNT(*) as total_events,
+			SUM(CASE WHEN e.delivered THEN 1 ELSE 0 END) as delivered_events,
+			SUM(CASE WHEN e.bounce THEN 1 ELSE 0 END) as bounce_events,
+			SUM(CASE WHEN e.open THEN 1 ELSE 0 END) as open_events,
+			SUM(CASE WHEN e.dropped AND e.dropped_reason LIKE '%spam%' THEN 1 ELSE 0 END) as spam_events
+		FROM 
+			events e
+		JOIN 
+			message_user_associations mua ON e.message_id = mua.message_id
+		JOIN
+			email_batches eb ON mua.user_id = eb.user_id
+		WHERE 
+			eb.id = $1 AND e.processed_time >= $2
+		GROUP BY 
+			e.provider
     `
 
-	rows, err := db.Query(query, batchID, startTime)
+	rows, err := db.Query(query, batchID, startTime.Unix())
 	if err != nil {
 		return nil, err
 	}

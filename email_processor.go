@@ -22,13 +22,15 @@ type KafkaMessage struct {
 }
 
 type BatchInfo struct {
-	ID             int
-	UserID         int
-	TotalEmails    int
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
-	Status         string
-	InitialWeights map[string]int
+	ID              int
+	UserID          int
+	TotalEmails     int
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+	Status          string
+	InitialWeights  map[string]int
+	BatchSize       int
+	IntervalSeconds int
 }
 
 func ProcessEmailMessages(msg *sarama.ConsumerMessage) {

@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"relay-go-consumer/database"
+	"sync"
 	"time"
 
 	"github.com/IBM/sarama"
@@ -55,46 +56,77 @@ func main() {
 		config.Consumer.Offsets.AutoCommit.Interval = time.Second * 5
 		config.Consumer.Group.Rebalance.Strategy = sarama.NewBalanceStrategyRoundRobin()
 
-		// Consume messages from each topic with a unique consumer group
-		consumeTopic(kafkaBrokers, emailTopic, "email-group", config, ProcessEmailMessages)
-		consumeTopic(kafkaBrokers, sendgridWebhookTopic, "sendgrid-group", config, ProcessSendgridEvents)
-		consumeTopic(kafkaBrokers, postmarkWebhookTopic, "postmark-group", config, ProcessPostmarkEvents)
-		consumeTopic(kafkaBrokers, socketlabsWebhookTopic, "socketlabs-group", config, ProcessSocketLabsEvents)
-		consumeTopic(kafkaBrokers, sparkpostWebhookTopic, "sparkpost-group", config, ProcessSparkPostEvents)
+		// Create a WaitGroup to wait for all goroutines
+		var wg sync.WaitGroup
 
-		// Wait forever
-		<-context.Background().Done()
+		// Consume messages from each topic with a unique consumer group
+		topics := []struct {
+			topic     string
+			group     string
+			processor func(*sarama.ConsumerMessage)
+		}{
+			{emailTopic, "email-group", ProcessEmailMessages},
+			{sendgridWebhookTopic, "sendgrid-group", ProcessSendgridEvents},
+			{postmarkWebhookTopic, "postmark-group", ProcessPostmarkEvents},
+			{socketlabsWebhookTopic, "socketlabs-group", ProcessSocketLabsEvents},
+			{sparkpostWebhookTopic, "sparkpost-group", ProcessSparkPostEvents},
+		}
+
+		for _, t := range topics {
+			wg.Add(1)
+			go func(topic, group string, processor func(*sarama.ConsumerMessage)) {
+				defer wg.Done()
+				consumeTopic(kafkaBrokers, topic, group, config, processor)
+			}(t.topic, t.group, t.processor)
+		}
+
+		// Start batch processing
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			ManageBatchProcessing(kafkaBrokers, config)
+		}()
+
+		// Wait for all goroutines to finish (which they never will in this case)
+		wg.Wait()
 	}
 }
 
 func consumeTopic(brokers []string, topic string, groupID string, config *sarama.Config, processFunc func(*sarama.ConsumerMessage)) {
-	consumer, err := sarama.NewConsumerGroup(brokers, groupID, config)
-	if err != nil {
-		log.Fatalf("Error creating consumer group client: %v", err)
-	}
+	for {
+		consumer, err := sarama.NewConsumerGroup(brokers, groupID, config)
+		if err != nil {
+			log.Printf("Error creating consumer group client for topic %s: %v", topic, err)
+			time.Sleep(5 * time.Second)
+			continue
+		}
 
-	go func() {
-		defer consumer.Close()
+		handler := consumerGroupHandler{processFunc: processFunc}
 		for {
-			if err := consumer.Consume(context.Background(), []string{topic}, &consumerGroupHandler{processFunc: processFunc}); err != nil {
-				log.Printf("Error from consumer: %v", err)
+			err := consumer.Consume(context.Background(), []string{topic}, handler)
+			if err != nil {
+				log.Printf("Error from consumer for topic %s: %v", topic, err)
+				break
 			}
 		}
-	}()
 
-	log.Printf("Consumer group %s started for topic %s", groupID, topic)
+		err = consumer.Close()
+		if err != nil {
+			log.Printf("Error closing consumer for topic %s: %v", topic, err)
+		}
+	}
 }
 
 type consumerGroupHandler struct {
 	processFunc func(*sarama.ConsumerMessage)
 }
 
-func (h *consumerGroupHandler) Setup(_ sarama.ConsumerGroupSession) error   { return nil }
-func (h *consumerGroupHandler) Cleanup(_ sarama.ConsumerGroupSession) error { return nil }
-func (h *consumerGroupHandler) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
-	for message := range claim.Messages() {
-		h.processFunc(message)
-		session.MarkMessage(message, "")
+func (h consumerGroupHandler) Setup(_ sarama.ConsumerGroupSession) error   { return nil }
+func (h consumerGroupHandler) Cleanup(_ sarama.ConsumerGroupSession) error { return nil }
+func (h consumerGroupHandler) ConsumeClaim(sess sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
+	for msg := range claim.Messages() {
+		h.processFunc(msg)
+		sess.MarkMessage(msg, "")
 	}
 	return nil
 }
