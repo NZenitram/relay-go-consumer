@@ -80,13 +80,6 @@ func main() {
 			}(t.topic, t.group, t.processor)
 		}
 
-		// Start batch processing
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			ManageBatchProcessing(kafkaBrokers, config)
-		}()
-
 		// Wait for all goroutines to finish (which they never will in this case)
 		wg.Wait()
 	}

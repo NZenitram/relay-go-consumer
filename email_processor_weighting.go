@@ -15,7 +15,7 @@ type ProviderStats struct {
 	SpamReportEvents int
 }
 
-func getProviderStats(db *sql.DB, userID int, daysBack int) ([]ProviderStats, error) {
+func getProviderStats(db *sql.DB, userID int, startTime, endTime time.Time) ([]ProviderStats, error) {
 	query := `
     SELECT 
         esp.provider_name,
@@ -34,12 +34,12 @@ func getProviderStats(db *sql.DB, userID int, daysBack int) ([]ProviderStats, er
     WHERE 
         esp.user_id = $1
         AND e.processed_time >= $2
+        AND e.processed_time < $3
     GROUP BY 
         esp.provider_name
     `
 
-	startDate := time.Now().UTC().AddDate(0, 0, -daysBack)
-	rows, err := db.Query(query, userID, startDate.Unix())
+	rows, err := db.Query(query, userID, startTime.Unix(), endTime.Unix())
 	if err != nil {
 		return nil, err
 	}
@@ -77,8 +77,8 @@ func getProviderStats(db *sql.DB, userID int, daysBack int) ([]ProviderStats, er
 // valid providers. This approach allows for dynamic load balancing and optimization of
 // email deliverability across multiple ESPs, with a strong emphasis on open rates and
 // spam prevention.
-func calculateWeights(db *sql.DB, userID int, credentials Credentials) (map[string]int, error) {
-	stats, err := getProviderStats(db, userID, 30) // Get stats for last 30 days
+func calculateWeightsForTimeRange(db *sql.DB, userID int, credentials Credentials, startTime, endTime time.Time) (map[string]int, error) {
+	stats, err := getProviderStats(db, userID, startTime, endTime)
 	if err != nil {
 		return nil, err
 	}
@@ -146,105 +146,4 @@ func isValidProvider(provider string, credentials Credentials) bool {
 	default:
 		return false
 	}
-}
-
-func calculateRecentWeights(db *sql.DB, batchID int, startTime time.Time) (map[string]int, error) {
-	query := `
-		SELECT 
-			e.provider,
-			COUNT(*) as total_events,
-			SUM(CASE WHEN e.delivered THEN 1 ELSE 0 END) as delivered_events,
-			SUM(CASE WHEN e.bounce THEN 1 ELSE 0 END) as bounce_events,
-			SUM(CASE WHEN e.open THEN 1 ELSE 0 END) as open_events,
-			SUM(CASE WHEN e.dropped AND e.dropped_reason LIKE '%spam%' THEN 1 ELSE 0 END) as spam_events
-		FROM 
-			events e
-		JOIN 
-			message_user_associations mua ON e.message_id = mua.message_id
-		JOIN
-			email_batches eb ON mua.user_id = eb.user_id
-		WHERE 
-			eb.id = $1 AND e.processed_time >= $2
-		GROUP BY 
-			e.provider
-    `
-
-	rows, err := db.Query(query, batchID, startTime.Unix())
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	providerStats := make(map[string]struct {
-		TotalEvents, DeliveredEvents, BounceEvents, OpenEvents, SpamEvents int
-	})
-
-	for rows.Next() {
-		var provider string
-		var stats struct {
-			TotalEvents, DeliveredEvents, BounceEvents, OpenEvents, SpamEvents int
-		}
-		err := rows.Scan(&provider, &stats.TotalEvents, &stats.DeliveredEvents, &stats.BounceEvents, &stats.OpenEvents, &stats.SpamEvents)
-		if err != nil {
-			return nil, err
-		}
-		providerStats[provider] = stats
-	}
-
-	weights := make(map[string]int)
-	totalScore := 0.0
-
-	for provider, stats := range providerStats {
-		if stats.TotalEvents > 0 {
-			deliveryRate := float64(stats.DeliveredEvents) / float64(stats.TotalEvents)
-			bounceRate := float64(stats.BounceEvents) / float64(stats.TotalEvents)
-			openRate := float64(stats.OpenEvents) / float64(stats.DeliveredEvents)
-			spamRate := float64(stats.SpamEvents) / float64(stats.TotalEvents)
-
-			score := (openRate * 0.4) + (deliveryRate * 0.3) - (bounceRate * 0.2) - (spamRate * 0.1)
-			if score < 0 {
-				score = 0
-			}
-
-			totalScore += score
-			weights[provider] = int(score * 1000)
-		}
-	}
-
-	// Normalize weights
-	if totalScore > 0 {
-		for provider := range weights {
-			weights[provider] = int(float64(weights[provider]) / totalScore * 1000)
-		}
-	}
-
-	return weights, nil
-}
-
-func adjustWeights(initialWeights, newWeights map[string]int) map[string]int {
-	adjustedWeights := make(map[string]int)
-	for provider, initialWeight := range initialWeights {
-		newWeight, exists := newWeights[provider]
-		if !exists {
-			newWeight = 0
-		}
-		// Adjust weight: 70% initial weight, 30% new weight
-		adjustedWeights[provider] = int(float64(initialWeight)*0.7 + float64(newWeight)*0.3)
-	}
-	return normalizeWeights(adjustedWeights)
-}
-
-func normalizeWeights(weights map[string]int) map[string]int {
-	total := 0
-	for _, weight := range weights {
-		total += weight
-	}
-	if total == 0 {
-		return weights // Avoid division by zero
-	}
-	normalizedWeights := make(map[string]int)
-	for provider, weight := range weights {
-		normalizedWeights[provider] = int((float64(weight) / float64(total)) * 1000)
-	}
-	return normalizedWeights
 }

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 )
 
@@ -15,7 +16,11 @@ type PostmarkErrorResponse struct {
 }
 
 // HandlePostmarkResponse processes the HTTP response from Postmark
-func HandlePostmarkResponse(resp *http.Response) error {
+func HandlePostmarkResponse(resp *http.Response, err error) error {
+	if err != nil {
+		log.Printf("Failed to send email to %v:", err)
+	}
+
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
