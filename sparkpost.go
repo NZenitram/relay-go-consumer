@@ -17,6 +17,8 @@ func SendEmailWithSparkPost(emailMessage EmailMessage) {
 		log.Fatal("Missing SparkPost API key in credentials")
 	}
 
+	errorHandler := NewSparkPostErrorHandler()
+
 	cfg := &sp.Config{
 		BaseUrl:    "https://api.sparkpost.com",
 		ApiKey:     apiKey,
@@ -128,11 +130,9 @@ func SendEmailWithSparkPost(emailMessage EmailMessage) {
 	// Send the email
 	id, res, err := client.Send(tx)
 	if err != nil {
-		log.Printf("Error sending email: %v", err)
-		return
+		errorHandler.HandleSendError(id, res, err)
 	}
 
-	log.Printf("Email sent successfully. ID: %s, Response: %v", id, res)
 }
 
 func processPlaceholders(content string, substitutions map[string]string) string {
