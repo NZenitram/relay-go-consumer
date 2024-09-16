@@ -18,7 +18,7 @@ type SendgridErrorResponse struct {
 	Errors []SendgridError `json:"errors"`
 }
 
-func HandleSendgridError(res *rest.Response, err error, to string) {
+func SendGridErrorHandler(res *rest.Response, err error, to string) {
 	if err != nil {
 		log.Printf("Failed to send email to %s: %v", to, err)
 		return

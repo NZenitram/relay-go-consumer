@@ -15,6 +15,7 @@ import (
 )
 
 type KafkaMessage struct {
+	BatchID   int
 	MessageID string              `json:"MessageID"`
 	UserID    int                 `json:"UserID"`
 	Headers   map[string][]string `json:"headers"`
@@ -22,15 +23,19 @@ type KafkaMessage struct {
 }
 
 type BatchInfo struct {
-	ID              int
-	UserID          int
-	TotalEmails     int
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
-	Status          string
-	InitialWeights  map[string]int
+	BatchID         int
+	TotalMessages   int
 	BatchSize       int
 	IntervalSeconds int
+	StartTime       time.Time
+	EndTime         sql.NullTime
+	CurrentBatch    int
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+	TotalBatches    sql.NullInt32
+	UserID          sql.NullInt32
+	BatchesToKafka  sql.NullInt32
+	Status          sql.NullString
 }
 
 func ProcessEmailMessages(msg *sarama.ConsumerMessage) {
@@ -39,6 +44,8 @@ func ProcessEmailMessages(msg *sarama.ConsumerMessage) {
 	if err != nil {
 		log.Fatalf("Failed to parse JSON: %v", err)
 	}
+
+	batchID := kafkaMessage.BatchID
 
 	database.InitDB()
 	db := database.GetDB()
@@ -54,20 +61,44 @@ func ProcessEmailMessages(msg *sarama.ConsumerMessage) {
 	emailMessage.Credentials = credentials
 
 	// Calculate weights based on event data
-	weights, err := calculateWeights(db, kafkaMessage.UserID, credentials)
-	if err != nil {
-		fmt.Printf("failed to calculate weights: %v", err)
-		return
-	}
-
-	if kafkaMessage.Body.CustomArgs["IsBatch"] == "true" {
-		err = handleBatchSend(db, kafkaMessage.UserID, emailMessage)
+	var weights map[string]int
+	if batchID != 0 {
+		batchInfo, err := fetchBatchData(db, batchID)
 		if err != nil {
-			fmt.Printf("failed to handle batch send: %v", err)
+			fmt.Printf("Failed to fetch batch data: %v", err)
+			return
+		}
+
+		currentTime := time.Now().UTC()
+		var startTime, endTime time.Time
+
+		if batchInfo.CurrentBatch < 1 {
+			// For the first batch, use the last 30 days
+			startTime = currentTime.AddDate(0, 0, -30)
+			endTime = currentTime
+		} else {
+			// For subsequent batches, use the time since the last batch
+			startTime = batchInfo.UpdatedAt
+			endTime = currentTime.Add(time.Duration(batchInfo.IntervalSeconds) * time.Second)
+		}
+
+		weights, err = calculateWeightsForTimeRange(db, kafkaMessage.UserID, credentials, startTime, endTime)
+		if err != nil {
+			fmt.Printf("failed to calculate weights: %v", err)
+			return
 		}
 	} else {
-		sendEmailsImmediately(emailMessage, weights)
+		// If batchID is 0, use the default 30 days back
+		endTime := time.Now()
+		startTime := endTime.AddDate(0, 0, -30)
+		weights, err = calculateWeightsForTimeRange(db, kafkaMessage.UserID, credentials, startTime, endTime)
+		if err != nil {
+			fmt.Printf("failed to calculate weights: %v", err)
+			return
+		}
 	}
+
+	sendEmailsImmediately(emailMessage, weights)
 }
 
 func sendEmailsImmediately(emailMessage EmailMessage, weights map[string]int) {
@@ -87,12 +118,10 @@ func sendEmailsImmediately(emailMessage EmailMessage, weights map[string]int) {
 		sender := SelectSender(weights)
 		senderGroups[sender] = append(senderGroups[sender], p)
 	}
-
 	// Send emails using each selected sender
 	for sender, personalizations := range senderGroups {
 		groupMessage := emailMessage
 		groupMessage.Personalizations = personalizations
-
 		switch sender {
 		case "sendgrid":
 			SendEmailWithSendGrid(groupMessage)
