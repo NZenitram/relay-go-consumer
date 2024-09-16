@@ -1,183 +1,101 @@
-Certainly! I'll update the README to include information about using an authorization header with the user's API key. Here's the revised structure with the new section added:
+# Email Processing System (Consumer)
 
-# Email Sending Service Documentation
+This is the consumer component of our Go-based email processing system. It works in tandem with the ingress system to process and send emails, as well as handle webhook events from various Email Service Providers (ESPs).
 
-## Table of Contents
-1. [Introduction](#introduction)
-2. [API Endpoint](#api-endpoint)
-3. [Authentication](#authentication)
-4. [JSON Payload Structure](#json-payload-structure)
-5. [Personalization and Content](#personalization-and-content)
-6. [Attachments](#attachments)
-7. [Custom Headers and Tracking](#custom-headers-and-tracking)
-8. [Email Service Provider Credentials](#email-service-provider-credentials)
-9. [Example CURL Requests](#example-curl-requests)
-10. [Webhook Events](#webhook-events)
-11. [Troubleshooting](#troubleshooting)
+## Overview
 
-## Introduction
-This document outlines the structure and usage of our email sending service, which supports multiple email service providers and offers personalization features.
+The consumer system is responsible for:
+1. Consuming messages from Kafka topics
+2. Processing email send requests
+3. Handling webhook events from different ESPs (SendGrid, Postmark, SocketLabs, SparkPost)
+4. Managing email delivery through multiple ESPs using a weighted approach
+5. Error handling and retries
+6. Updating the database with email statuses and event data
 
-## API Endpoint
-The email sending endpoint is accessible at:
+## Key Components
+
+1. **Main Application (main.go)**: Sets up Kafka consumers for various topics and manages the overall flow of the application.
+
+2. **Email Processor**: Handles the core email processing logic, including batch processing and ESP weighting.
+
+3. **ESP Integrations**: Separate modules for each supported ESP (SendGrid, Postmark, SocketLabs, SparkPost) to handle sending emails and processing webhook events.
+
+4. **Webhook Event Processor**: Manages incoming webhook events from different ESPs.
+
+5. **Database Integration**: Handles database operations for storing and retrieving email and event data.
+
+## Email Processing and Sending
+
+The system uses a sophisticated approach to process and send emails:
+
+1. **Batch Processing**: Emails can be processed in batches, allowing for efficient handling of large volumes.
+
+2. **ESP Weighting**: The system calculates weights for each ESP based on their performance over time. This includes factors such as:
+   - Open rates
+   - Delivery rates
+   - Bounce rates
+   - Spam report rates
+
+3. **Dynamic Weight Calculation**: 
+   - For the first batch or non-batch emails, it uses data from the last 30 days.
+   - For subsequent batches, it uses data since the last batch was sent.
+   - Weights are normalized to sum up to 1000 for precise distribution.
+
+4. **Sender Selection**: Based on the calculated weights, the system selects an appropriate ESP for each email or group of emails.
+
+5. **Personalization**: The system supports personalized emails, using substitutions provided in the email payload.
+
+6. **Multi-ESP Sending**: Emails within a single request can be distributed across multiple ESPs based on their weights.
+
+## Event Processing
+
+The system processes various types of events from different ESPs:
+
+1. **Webhook Consumption**: Dedicated Kafka topics for each ESP's webhook events.
+
+2. **Event Types**: Processes events such as deliveries, opens, clicks, bounces, and spam reports.
+
+3. **Database Updates**: Each processed event updates the relevant email status in the database.
+
+4. **Performance Tracking**: Event data is used to calculate ESP performance metrics, which in turn affects future weight calculations.
+
+## Configuration
+
+The application uses environment variables for configuration. Key variables include:
+
+- `KAFKA_BROKERS`: Kafka broker addresses
+- `KAFKA_EMAIL_TOPIC`: Topic for email messages
+- `WEBHOOK_TOPIC_*`: Topics for webhook events from different ESPs
+- `KAFKA_OFFSET_RESET`: Kafka consumer offset reset policy
+
+## Running the Application
+
+1. Ensure all environment variables are set in the `.env` file.
+2. Build the Docker image: `docker build -t email-consumer .`
+3. Run the container: `docker run --env-file .env email-consumer`
+
+## Database Seeding
+
+The application includes a database seeding option for development and testing purposes. To seed the database:
+
 ```
-https://horribly-striking-joey.ngrok-free.app/emails
-```
-
-## Authentication
-To authorize email sends, you must include your API key in the Authorization header of your HTTP request.
-
-Header format:
-```
-Authorization: Bearer YOUR_API_KEY
-```
-
-Replace `YOUR_API_KEY` with the actual API key provided to you.
-
-## JSON Payload Structure
-The API accepts a JSON payload with the following main sections:
-- `from`: Sender information
-- `personalizations`: Recipient-specific information and substitutions
-- `content`: Email body in plain text and HTML formats
-- `sections`: Reusable content sections
-- `attachments`: File attachments
-- `headers`: Custom email headers
-- `custom_args`: Additional sending options
-- `categories`: Email categorization
-
-## Personalization and Content
-### Personalizations
-The `personalizations` array allows for recipient-specific customization:
-```json
-"personalizations": [
-  {
-    "to": {
-      "name": "Recipient Name",
-      "email": "recipient@example.com"
-    },
-    "subject": "Personalized Subject",
-    "substitutions": {
-      "name": "Recipient Name",
-      "order_id": "12345",
-      "confirmations": "confirmation_001"
-    }
-  }
-]
-```
-
-### Content
-Email content can be provided in both plain text and HTML formats. Variables can be included using either `-var-` or `{{var}}` syntax:
-```json
-"content": [
-  {
-    "type": "text/plain",
-    "value": "Hello {{name}},\n{{confirmations}}"
-  },
-  {
-    "type": "text/html",
-    "value": "<html><body><p>Hello {{name}},<br>{{confirmations}}</p></body></html>"
-  }
-]
-```
-
-### Sections
-Reusable content sections can be defined and referenced in the email content:
-```json
-"sections": {
-  "confirmation_001": "Thanks for choosing our service. This email is to confirm that we have processed your order {{order_id}}.",
-  "confirmation_002": "Thanks for your order. We've processed your order {{order_id}}. You can download your invoice as a PDF for your records."
-}
+go run main.go -seed
 ```
 
-## Attachments
-Files can be attached to the email:
-```json
-"attachments": [
-  {
-    "filename": "example.txt",
-    "type": "text/plain",
-    "content": "SGVsbG8gd29ybGQh",
-    "content_id": "ii_139db99fdb5c3704",
-    "disposition": "attachment"
-  }
-]
-```
+## Error Handling
 
-## Custom Headers and Tracking
-Custom headers and tracking options can be specified:
-```json
-"headers": {
-  "X-Custom-Header-1": "Custom Value 1",
-  "X-Custom-Header-2": "Custom Value 2"
-},
-"custom_args": {
-  "TrackOpens": "true",
-  "TrackLinks": "HtmlOnly",
-  "MessageStream": "outbound"
-}
-```
+Each ESP integration includes specific error handling logic to manage API errors and retry mechanisms.
 
-## Email Service Provider Credentials
-The API supports multiple email service providers. Credentials and weights for each provider can be specified in the request payload or managed server-side.
+## Performance Considerations
 
-## Example CURL Requests
-Here's an example CURL request to send an email:
-```bash
-curl -X POST https://horribly-striking-joey.ngrok-free.app/emails \
--H "Content-Type: application/json" \
--H "Authorization: Bearer YOUR_API_KEY" \
--d '{
-  "from": {
-    "name": "Sender Name",
-    "email": "sender@example.com"
-  },
-  "personalizations": [
-    {
-      "to": {
-        "name": "Recipient Name",
-        "email": "recipient@example.com"
-      },
-      "subject": "Personalized Subject",
-      "substitutions": {
-        "name": "Recipient Name",
-        "order_id": "12345",
-        "confirmations": "confirmation_001"
-      }
-    }
-  ],
-  "content": [
-    {
-      "type": "text/plain",
-      "value": "Hello {{name}},\n{{confirmations}}"
-    },
-    {
-      "type": "text/html",
-      "value": "<html><body><p>Hello {{name}},<br>{{confirmations}}</p></body></html>"
-    }
-  ],
-  "sections": {
-    "confirmation_001": "Thanks for choosing our service. This email is to confirm that we have processed your order {{order_id}}."
-  },
-  "attachments": [
-    {
-      "filename": "receipt.pdf",
-      "type": "application/pdf",
-      "content": "base64encodedcontent"
-    }
-  ],
-  "headers": {
-    "X-Custom-Header": "Custom Value"
-  },
-  "custom_args": {
-    "TrackOpens": "true",
-    "TrackLinks": "HtmlOnly"
-  },
-  "categories": ["order", "confirmation"]
-}'
-```
+- The application uses goroutines to consume messages from different Kafka topics concurrently.
+- ESP weighting helps in load balancing and optimizing email delivery across multiple providers.
+- Batch processing is implemented for efficient handling of large volumes of emails.
 
-## Webhook Events
-The service supports webhook events for tracking email status. Webhook endpoints for different providers are available for processing these events.
+## Contributing
 
-## Troubleshooting
-For any issues, please refer to the specific email service provider's documentation or contact our support team.
+Please refer to CONTRIBUTING.md for guidelines on how to contribute to this project.
+
+## License
+
+[Specify your license here]
