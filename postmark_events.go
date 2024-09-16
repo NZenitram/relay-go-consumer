@@ -70,7 +70,7 @@ func standardizePostmarkEvent(event PostmarkEvent) StandardizedEvent {
 		MessageID:     event.MessageID,
 		Provider:      "postmark",
 		Processed:     true,
-		ProcessedTime: time.Now().Unix(),
+		ProcessedTime: time.Now().UTC().Unix(),
 	}
 
 	switch event.RecordType {

@@ -98,7 +98,7 @@ func prepareSocketLabsMessages(emailMessage EmailMessage) []*message.BasicMessag
 
 func generateXxsMessageId(apiKey string) string {
 	// Create a unique string using apiKey and current timestamp
-	uniqueString := fmt.Sprintf("%s-%d", apiKey, time.Now().UnixNano())
+	uniqueString := fmt.Sprintf("%s-%d", apiKey, time.Now().UTC().UnixNano())
 
 	// Create MD5 hash
 	hasher := md5.New()

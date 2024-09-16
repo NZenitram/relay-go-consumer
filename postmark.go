@@ -4,9 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
-	"net/http/httputil"
 	"strings"
 )
 
@@ -68,13 +66,13 @@ func SendEmailWithPostmark(emailMessage EmailMessage) error {
 
 func sendEmail(req *http.Request) error {
 	// Dump the request to a byte slice
-	dump, err := httputil.DumpRequestOut(req, true)
-	if err != nil {
-		return fmt.Errorf("failed to dump request: %v", err)
-	}
+	// dump, err := httputil.DumpRequestOut(req, true)
+	// if err != nil {
+	// 	return fmt.Errorf("failed to dump request: %v", err)
+	// }
 
-	// Print the dumped request
-	log.Printf("Request:\n%s", string(dump))
+	// // Print the dumped request
+	// log.Printf("Request:\n%s", string(dump))
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -82,7 +80,7 @@ func sendEmail(req *http.Request) error {
 		return fmt.Errorf("failed to send HTTP request: %v", err)
 	}
 
-	return HandlePostmarkResponse(resp)
+	return HandlePostmarkResponse(resp, err)
 }
 
 func mapEmailMessageToPostmark(emailMessage EmailMessage) []PostMarkMessage {

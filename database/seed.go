@@ -59,7 +59,7 @@ func SeedDB(db *sql.DB) error {
 		totalWeight += esp.Weight
 	}
 
-	endTime := time.Now()
+	endTime := time.Now().UTC()
 	startTime := endTime.Add(-time.Duration(sixMonthsInSeconds) * time.Second)
 
 	// Create a channel to distribute work
