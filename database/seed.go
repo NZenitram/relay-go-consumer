@@ -8,10 +8,10 @@ import (
 )
 
 const (
-	numMessages        = 10000000
-	sixMonthsInSeconds = 15778800 // Approximately 6 months in seconds (365.25/2 * 24 * 60 * 60)
-	batchSize          = 1000
-	numWorkers         = 4
+	numMessages        = 100000000
+	sixMonthsInSeconds = 31557600 // Approximately 12 months in seconds (365.25/2 * 24 * 60 * 60)
+	batchSize          = 10000
+	numWorkers         = 24
 )
 
 type ESP struct {
@@ -49,9 +49,16 @@ type Event struct {
 }
 
 func SeedDB(db *sql.DB) error {
+	fmt.Println("Starting database seeding...")
+
 	esps, err := getExistingESPs(db)
 	if err != nil {
 		return fmt.Errorf("error getting existing ESPs: %v", err)
+	}
+	fmt.Printf("Found %d ESPs\n", len(esps))
+
+	if len(esps) == 0 {
+		return fmt.Errorf("no ESPs found in the database")
 	}
 
 	totalWeight := 0
@@ -63,31 +70,56 @@ func SeedDB(db *sql.DB) error {
 	startTime := endTime.Add(-time.Duration(sixMonthsInSeconds) * time.Second)
 
 	// Create a channel to distribute work
-	jobs := make(chan int, numMessages)
-	results := make(chan error, numMessages)
+	jobs := make(chan int, batchSize*numWorkers)
+	results := make(chan error, batchSize*numWorkers)
 
 	// Start worker goroutines
 	for w := 0; w < numWorkers; w++ {
-		go worker(jobs, results, esps, totalWeight, startTime, db)
+		go worker(w, jobs, results, esps, totalWeight, startTime, db)
 	}
 
 	// Send jobs to the channel
-	for i := 0; i < numMessages; i++ {
-		jobs <- i
-	}
-	close(jobs)
+	go func() {
+		for i := 0; i < numMessages; i++ {
+			jobs <- i
+		}
+		close(jobs)
+	}()
 
 	// Collect results
+	successCount := 0
+	errorCount := 0
+	startProcessingTime := time.Now()
+
 	for i := 0; i < numMessages; i++ {
 		if err := <-results; err != nil {
-			return fmt.Errorf("error in worker: %v", err)
+			fmt.Printf("Error in worker: %v\n", err)
+			errorCount++
+		} else {
+			successCount++
+		}
+
+		if i > 0 && i%10000 == 0 {
+			elapsed := time.Since(startProcessingTime)
+			rate := float64(i) / elapsed.Seconds()
+			fmt.Printf("Processed %d messages (%.2f%%)... Current rate: %.2f messages/second\n",
+				i, float64(i)/float64(numMessages)*100, rate)
 		}
 	}
+
+	totalTime := time.Since(startProcessingTime)
+	overallRate := float64(numMessages) / totalTime.Seconds()
+
+	fmt.Printf("Seeding complete.\n")
+	fmt.Printf("Total time: %v\n", totalTime)
+	fmt.Printf("Successfully inserted: %d\n", successCount)
+	fmt.Printf("Errors: %d\n", errorCount)
+	fmt.Printf("Overall rate: %.2f messages/second\n", overallRate)
 
 	return nil
 }
 
-func worker(jobs <-chan int, results chan<- error, esps []ESP, totalWeight int, startTime time.Time, db *sql.DB) {
+func worker(id int, jobs <-chan int, results chan<- error, esps []ESP, totalWeight int, startTime time.Time, db *sql.DB) {
 	for i := range jobs {
 		err := func() error {
 			tx, err := db.Begin()
@@ -112,6 +144,8 @@ func worker(jobs <-chan int, results chan<- error, esps []ESP, totalWeight int, 
 
 			// Generate and insert event
 			event := generateEvent(messageID, esp.Provider, randomTime.Unix())
+
+			// Insert into events table
 			_, err = tx.Exec(`
                 INSERT INTO events 
                 (message_id, processed, processed_time, delivered, delivered_time, 
@@ -125,6 +159,67 @@ func worker(jobs <-chan int, results chan<- error, esps []ESP, totalWeight int, 
 				event.LastOpenTime, event.Dropped, event.DroppedTime, event.DroppedReason, event.Provider, event.Metadata)
 			if err != nil {
 				return fmt.Errorf("error inserting event: %v", err)
+			}
+
+			// Insert into TimescaleDB tables
+			if event.Processed {
+				_, err = tx.Exec(`
+                    INSERT INTO processed_events (time, message_id, user_id, esp_id, provider)
+                    VALUES ($1, $2, $3, $4, $5)
+                `, time.Unix(event.ProcessedTime, 0), event.MessageID, esp.UserID, esp.ESPID, event.Provider)
+				if err != nil {
+					return fmt.Errorf("error inserting processed event: %v", err)
+				}
+			}
+
+			if event.Delivered {
+				_, err = tx.Exec(`
+                    INSERT INTO delivered_events (time, message_id, user_id, esp_id, provider)
+                    VALUES ($1, $2, $3, $4, $5)
+                `, time.Unix(*event.DeliveredTime, 0), event.MessageID, esp.UserID, esp.ESPID, event.Provider)
+				if err != nil {
+					return fmt.Errorf("error inserting delivered event: %v", err)
+				}
+			}
+
+			if event.Bounce {
+				_, err = tx.Exec(`
+                    INSERT INTO bounce_events (time, message_id, user_id, esp_id, provider, bounce_type)
+                    VALUES ($1, $2, $3, $4, $5, $6)
+                `, time.Unix(*event.BounceTime, 0), event.MessageID, esp.UserID, esp.ESPID, event.Provider, *event.BounceType)
+				if err != nil {
+					return fmt.Errorf("error inserting bounce event: %v", err)
+				}
+			}
+
+			if event.Deferred {
+				_, err = tx.Exec(`
+                    INSERT INTO deferred_events (time, message_id, user_id, esp_id, provider, deferred_count)
+                    VALUES ($1, $2, $3, $4, $5, $6)
+                `, time.Unix(*event.LastDeferralTime, 0), event.MessageID, esp.UserID, esp.ESPID, event.Provider, event.DeferredCount)
+				if err != nil {
+					return fmt.Errorf("error inserting deferred event: %v", err)
+				}
+			}
+
+			if event.Open {
+				_, err = tx.Exec(`
+                    INSERT INTO open_events (time, message_id, user_id, esp_id, provider, open_count)
+                    VALUES ($1, $2, $3, $4, $5, $6)
+                `, time.Unix(*event.LastOpenTime, 0), event.MessageID, esp.UserID, esp.ESPID, event.Provider, event.OpenCount)
+				if err != nil {
+					return fmt.Errorf("error inserting open event: %v", err)
+				}
+			}
+
+			if event.Dropped {
+				_, err = tx.Exec(`
+                    INSERT INTO dropped_events (time, message_id, user_id, esp_id, provider, dropped_reason)
+                    VALUES ($1, $2, $3, $4, $5, $6)
+                `, time.Unix(*event.DroppedTime, 0), event.MessageID, esp.UserID, esp.ESPID, event.Provider, *event.DroppedReason)
+				if err != nil {
+					return fmt.Errorf("error inserting dropped event: %v", err)
+				}
 			}
 
 			return tx.Commit()
@@ -146,6 +241,7 @@ func getExistingESPs(db *sql.DB) ([]ESP, error) {
 		END as weight,
 		sending_domains[1], created_at, updated_at 
 		FROM email_service_providers
+		WHERE user_id = 5
 	`)
 	if err != nil {
 		return nil, err
@@ -194,17 +290,17 @@ func generateEvent(messageID, provider string, processedTime int64) Event {
 		deferRate = 0.02
 		dropRate = 0.01
 	case "postmark":
-		deliveryRate = 0.65
+		deliveryRate = 0.89
 		bounceRate = 0.06
 		deferRate = 0.03
 		dropRate = 0.01
 	case "socketlabs":
-		deliveryRate = 0.89
+		deliveryRate = 0.91
 		bounceRate = 0.07
 		deferRate = 0.03
 		dropRate = 0.02
 	case "sparkpost":
-		deliveryRate = 0.45
+		deliveryRate = 0.94
 		bounceRate = 0.06
 		deferRate = 0.03
 		dropRate = 0.02
@@ -216,37 +312,49 @@ func generateEvent(messageID, provider string, processedTime int64) Event {
 	}
 
 	r := rand.Float64()
+	processedDateTime := time.Unix(processedTime, 0)
+
+	// Adjust rates based on day of week and time of day
+	if isWeekend(processedDateTime) {
+		deliveryRate *= 0.8
+		bounceRate *= 1.2
+		deferRate *= 1.1
+		dropRate *= 1.1
+	}
+
+	hourAdjustment := getHourAdjustment(processedDateTime)
+	deliveryRate *= hourAdjustment
+	bounceRate *= (2 - hourAdjustment)
+	deferRate *= (2 - hourAdjustment)
+	dropRate *= (2 - hourAdjustment)
+
 	switch {
 	case r < deliveryRate:
 		event.Delivered = true
 		deliveredTime := processedTime + int64(rand.Intn(300)) // Deliver within 5 minutes
 		event.DeliveredTime = &deliveredTime
 
-		if rand.Float64() < 0.25 { // 25% of delivered are opened
+		if rand.Float64() < getOpenProbability(time.Unix(deliveredTime, 0)) {
 			event.Open = true
 			event.OpenCount = rand.Intn(5) + 1
-			lastOpenTime := deliveredTime + int64(rand.Intn(604800)) // Open within a week
+			lastOpenTime := getRealisticOpenTime(deliveredTime)
 			event.LastOpenTime = &lastOpenTime
-
 			if rand.Float64() < 0.9 { // 90% of opens are unique
 				event.UniqueOpen = true
 				event.UniqueOpenTime = &lastOpenTime
 			}
 		}
-
 	case r < deliveryRate+bounceRate:
 		event.Bounce = true
 		bounceTime := processedTime + int64(rand.Intn(300)) // Bounce within 5 minutes
 		event.BounceTime = &bounceTime
 		bounceType := []string{"hard", "soft", "block"}[rand.Intn(3)]
 		event.BounceType = &bounceType
-
 	case r < deliveryRate+bounceRate+deferRate:
 		event.Deferred = true
 		event.DeferredCount = rand.Intn(5) + 1
 		lastDeferralTime := processedTime + int64(rand.Intn(3600)) // Defer within an hour
 		event.LastDeferralTime = &lastDeferralTime
-
 	case r < deliveryRate+bounceRate+deferRate+dropRate:
 		event.Dropped = true
 		droppedTime := processedTime + int64(rand.Intn(300)) // Drop within 5 minutes
@@ -256,4 +364,58 @@ func generateEvent(messageID, provider string, processedTime int64) Event {
 	}
 
 	return event
+}
+
+func isWeekend(t time.Time) bool {
+	day := t.Weekday()
+	return day == time.Saturday || day == time.Sunday
+}
+
+func getHourAdjustment(t time.Time) float64 {
+	hour := t.Hour()
+	switch {
+	case hour >= 7 && hour < 10:
+		return 1.3 // Morning peak
+	case hour >= 11 && hour < 14:
+		return 1.2 // Midday
+	case hour >= 15 && hour < 18:
+		return 1.1 // Afternoon
+	case hour >= 19 && hour < 23:
+		return 0.9 // Evening
+	default:
+		return 0.7 // Late night/early morning
+	}
+}
+
+func getOpenProbability(t time.Time) float64 {
+	baseProbability := 0.25
+	if isWeekend(t) {
+		baseProbability *= 0.8
+	}
+	return baseProbability * getHourAdjustment(t)
+}
+
+func getRealisticOpenTime(deliveredTime int64) int64 {
+	deliveredDateTime := time.Unix(deliveredTime, 0)
+
+	// 50% chance to open within 1 hour, 30% within 24 hours, 20% within a week
+	r := rand.Float64()
+	var openDelay int64
+	switch {
+	case r < 0.5:
+		openDelay = rand.Int63n(3600) // Within 1 hour
+	case r < 0.8:
+		openDelay = rand.Int63n(86400) // Within 24 hours
+	default:
+		openDelay = rand.Int63n(604800) // Within a week
+	}
+
+	openDateTime := deliveredDateTime.Add(time.Duration(openDelay) * time.Second)
+
+	// Adjust open time to more realistic hours
+	for openDateTime.Hour() >= 23 || openDateTime.Hour() < 6 {
+		openDateTime = openDateTime.Add(time.Hour)
+	}
+
+	return openDateTime.Unix()
 }
