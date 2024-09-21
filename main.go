@@ -14,6 +14,11 @@ import (
 	"github.com/joho/godotenv"
 )
 
+var (
+	seedFlag         = flag.Bool("seed", false, "Seed the database")
+	realTimeSeedFlag = flag.Bool("realtime-seed", false, "Perform real-time seeding")
+)
+
 func main() {
 	err := godotenv.Load()
 	if err != nil {
@@ -31,6 +36,18 @@ func main() {
 		database.SeedDB(db)
 
 		fmt.Println("Database seeded successfully")
+	} else if *realTimeSeedFlag {
+		// New real-time seeding logic
+		database.InitDB()
+		db := database.GetDB()
+		defer database.CloseDB()
+
+		err := database.RealTimeSeedDB(db)
+		if err != nil {
+			fmt.Printf("Error during real-time seeding: %v\n", err)
+		} else {
+			fmt.Println("Real-time seeding started successfully")
+		}
 	} else {
 
 		kafkaBrokers := []string{os.Getenv("KAFKA_BROKERS")}
