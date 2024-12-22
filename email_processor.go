@@ -291,14 +291,14 @@ func fetchESPCredentials(userID int) (Credentials, error) {
 	db := database.GetDB()
 
 	query := `
-        SELECT provider_name, 
-               socketlabs_server_id, socketlabs_api_key,
-               postmark_server_token,
-               sendgrid_api_key,
-               sparkpost_api_key,
-			   weight
-        FROM email_service_providers
-        WHERE user_id = $1
+		SELECT provider_name, 
+			socketlabs_server_id, socketlabs_api_key,
+			postmark_server_token,
+			sendgrid_api_key,
+			sparkpost_api_key,
+			weight
+		FROM email_service_providers
+		WHERE user_id = ?
     `
 	rows, err := db.Query(query, userID)
 	if err != nil {

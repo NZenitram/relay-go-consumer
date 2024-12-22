@@ -32,9 +32,9 @@ func getProviderStats(db *sql.DB, userID int, startTime, endTime time.Time) ([]P
     JOIN 
         email_service_providers esp ON mua.esp_id = esp.esp_id
     WHERE 
-        esp.user_id = $1
-        AND e.processed_time >= $2
-        AND e.processed_time < $3
+        esp.user_id = ?
+        AND e.processed_time >= ?
+        AND e.processed_time < ?
     GROUP BY 
         esp.provider_name
     `

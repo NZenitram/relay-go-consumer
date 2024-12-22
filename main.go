@@ -11,13 +11,38 @@ import (
 	"time"
 
 	"github.com/IBM/sarama"
-	"github.com/joho/godotenv"
 )
 
 func main() {
-	err := godotenv.Load()
-	if err != nil {
-		log.Println("No .env file found, using system environment variables")
+	// err := godotenv.Load()
+	// if err != nil {
+	// 	log.Println("No .env file found, using system environment variables")
+	// }
+
+	kafkaBrokers := []string{os.Getenv("KAFKA_BROKERS")}
+	emailTopic := os.Getenv("KAFKA_EMAIL_TOPIC")
+	if emailTopic == "" {
+		log.Fatal("WEBHOOK_TOPIC_SENDGRID environment variable is not set")
+	}
+	sendgridWebhookTopic := os.Getenv("WEBHOOK_TOPIC_SENDGRID")
+	if sendgridWebhookTopic == "" {
+		log.Fatal("WEBHOOK_TOPIC_SENDGRID environment variable is not set")
+	}
+	postmarkWebhookTopic := os.Getenv("WEBHOOK_TOPIC_POSTMARK")
+	if postmarkWebhookTopic == "" {
+		log.Fatal("WEBHOOK_TOPIC_SENDGRID environment variable is not set")
+	}
+	socketlabsWebhookTopic := os.Getenv("WEBHOOK_TOPIC_SOCKETLABS")
+	if socketlabsWebhookTopic == "" {
+		log.Fatal("WEBHOOK_TOPIC_SENDGRID environment variable is not set")
+	}
+	sparkpostWebhookTopic := os.Getenv("WEBHOOK_TOPIC_SPARKPOST")
+	if sparkpostWebhookTopic == "" {
+		log.Fatal("WEBHOOK_TOPIC_SENDGRID environment variable is not set")
+	}
+	offsetReset := os.Getenv("KAFKA_OFFSET_RESET")
+	if offsetReset == "" {
+		log.Fatal("WEBHOOK_TOPIC_SENDGRID environment variable is not set")
 	}
 
 	seedFlag := flag.Bool("seed", false, "Seed the database with sample data")
@@ -32,14 +57,6 @@ func main() {
 
 		fmt.Println("Database seeded successfully")
 	} else {
-
-		kafkaBrokers := []string{os.Getenv("KAFKA_BROKERS")}
-		emailTopic := os.Getenv("KAFKA_EMAIL_TOPIC")
-		sendgridWebhookTopic := os.Getenv("WEBHOOK_TOPIC_SENDGRID")
-		postmarkWebhookTopic := os.Getenv("WEBHOOK_TOPIC_POSTMARK")
-		socketlabsWebhookTopic := os.Getenv("WEBHOOK_TOPIC_SOCKETLABS")
-		sparkpostWebhookTopic := os.Getenv("WEBHOOK_TOPIC_SPARKPOST")
-		offsetReset := os.Getenv("KAFKA_OFFSET_RESET")
 
 		// Set the offset reset policy based on the environment variable
 		var offsetResetConfig int64
